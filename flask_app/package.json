@@ -1,0 +1,35 @@
+{
+  "name": "annotate-x",
+  "version": "1.0.0",
+  "description": "A web-based data annotation tool. It allows users to create, annotate, and store image labeling projects securely without relying on local device storage.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:css": "npx tailwindcss -i ./static/src/css/input.css -o ./static/dist/css/output.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daniell-olaitan/annotate-x.git"
+  },
+  "keywords": [
+    "annotation",
+    "data",
+    "annotation",
+    "image",
+    "annotation",
+    "ml",
+    "ai"
+  ],
+  "author": "Daniel <daniell.olaitan@gmail.com> (https://danielolaitan.live/me)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/daniell-olaitan/annotate-x/issues"
+  },
+  "homepage": "https://github.com/daniell-olaitan/annotate-x#readme",
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.4",
+    "daisyui": "^5.0.19",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3"
+  }
+}
