@@ -17,8 +17,9 @@ class User(BaseModel):
 
 
 class Project(BaseModel):
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, classes: list[dict[str, str]]) -> None:
         self.name = name
+        self.classes =
 
 
 class Annotation(BaseModel):
@@ -26,7 +27,7 @@ class Annotation(BaseModel):
         self,
         start_point: dict[str, float],
         dimension: dict[str, float],
-        category: dict[str, dict[str, str]]
+        category: dict[str, str]
     ) -> None:
         self.start_point = start_point
         self.dimension = dimension
