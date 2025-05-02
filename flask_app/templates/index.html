@@ -1,7 +1,3 @@
-{% import 'components/navbar.html' as nav %}
-{% import 'components/footer.html' as foot %}
-{% import 'components/main.html' as main %}
-
 <!DOCTYPE html>
 <html class="bg-gray-50" lang="en">
 <head>
@@ -11,10 +7,6 @@
   <link rel="stylesheet" href="{{url_for('static', filename='dist/css/output.css')}}">
 </head>
 <body class="flex flex-col min-h-screen">
-  {{ nav.navbar(username='0xD4N13L') }}
-  {{ main.main() }}
-  {{ foot.footer() }}
-
-  <script type="module" src="{{ url_for('static', filename='src/js/pages/AnnotationPage.js') }}"></script>
+  {% block content %}{% endblock %}
 </body>
 </html>

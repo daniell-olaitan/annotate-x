@@ -1,5 +1,5 @@
 import { Popup } from './Popup.js';
-import { Drawer } from '../utils/drawer.js';
+import { Drawer } from '../utils.js';
 
 import htm from 'https://esm.sh/htm';
 import { h } from 'https://esm.sh/preact';
@@ -7,13 +7,24 @@ import { useRef, useState, useEffect } from 'https://esm.sh/preact/hooks';
 
 const html = htm.bind(h);
 
-export function Annotator({imageUrl, savedBoxes = [], annotationColor, onSave, classes}) {
+export function Annotator({
+  onSave,
+  classes,
+  imageUrl,
+  annotations,
+  setAnnotations,
+}) {
   const containerWidth = 900;
   const containerHeight = 400;
 
-  const labels = Object.keys(classes);
+  const annotationColor = 'red';
 
-  const newRectsRef = useRef([]);
+  const keys = Object.keys(classes);
+  const labels = keys.map(k => {
+    return {key: k, value: k}
+  });
+
+  const annotationsRef = useRef([...annotations]);
   const drawerRef = useRef(new Drawer());
 
   const [scale, setScale] = useState({ x: 1, y: 1 });
@@ -28,32 +39,54 @@ export function Annotator({imageUrl, savedBoxes = [], annotationColor, onSave, c
 
   const [popupPos, setPopupPos] = useState(null);
 
+  const [imgUrl, setImgUrl] = useState('');
+
+  useEffect(() => {
+    annotationsRef.current = [...annotations];
+  }, [annotations]);
+
   useEffect(() => {
     const img = imageRef.current;
-    img.onload = () => {
-      const naturalWidth = img.naturalWidth;
-      const naturalHeight = img.naturalHeight;
-      setNaturalSize({ width: naturalWidth, height: naturalHeight });
 
-      const scaleX = containerWidth / naturalWidth;
-      const scaleY = containerHeight / naturalHeight;
-      setScale({ x: scaleX, y: scaleY });
+    if (!img) {
+      return
+    }
 
-      drawerRef.current.ctx = canvasRef.current.getContext('2d');
-      drawAll(scaleX, scaleY);
-    };
-  }, [imageUrl, savedBoxes]);
+    const naturalWidth = img.naturalWidth;
+    const naturalHeight = img.naturalHeight;
+
+    setNaturalSize({ width: naturalWidth, height: naturalHeight });
+
+    const scaleX = containerWidth / naturalWidth;
+    const scaleY = containerHeight / naturalHeight;
+    setScale({ x: scaleX, y: scaleY });
+
+    const ctx = canvasRef.current?.getContext('2d');
+    drawerRef.current.ctx = ctx;
+
+    drawAll(scaleX, scaleY);
+  }, [imgUrl]);
+
+  useEffect(() => {
+    if (imageUrl && Object.keys(imageUrl).length > 0) {
+      setImgUrl(Object.values(imageUrl)[0]);
+    }
+  }, [imageUrl]);
+
+  useEffect(() => {
+    drawAll(scale.x, scale.y);
+  }, [annotations]);
 
   const getCurrentBox = (startPoint, currentPoint) => {
     return {
       id: null,
       class: null,
+      color: annotationColor,
       box: {
         x: Math.min(startPoint.x, currentPoint.x) / scale.x,
         y: Math.min(startPoint.y, currentPoint.y) / scale.y,
         width: Math.abs(currentPoint.x - startPoint.x) / scale.x,
         height: Math.abs(currentPoint.y - startPoint.y) / scale.y,
-        color: annotationColor
       }
     };
   };
@@ -64,7 +97,7 @@ export function Annotator({imageUrl, savedBoxes = [], annotationColor, onSave, c
     const drawBox = (boxProps) => {
       const box = boxProps.box;
 
-      drawer.color = box.color;
+      drawer.color = boxProps.color;
       drawer.drawRect(box, scaleX, scaleY);
 
       if (boxProps.id) {
@@ -86,11 +119,7 @@ export function Annotator({imageUrl, savedBoxes = [], annotationColor, onSave, c
       height: containerHeight
     });
 
-    // Draw saved boxes
-    savedBoxes.forEach(drawBox);
-
-    // Draw new boxes
-    newRectsRef.current.forEach(drawBox);
+    annotationsRef.current.forEach(drawBox);
 
     // Draw active box
     if (isDrawingRef.current) {
@@ -100,14 +129,14 @@ export function Annotator({imageUrl, savedBoxes = [], annotationColor, onSave, c
   };
 
   const handleLabelSelect = (className) => {
-    const boxProps =  newRectsRef.current.pop();
+    const boxProps =  annotationsRef.current.pop();
 
-    if (className) {
-      const sameClass = newRectsRef.current.filter(a => a.class === className);
+    if (className && Object.keys(className).length > 0) {
+      const sameClass = annotationsRef.current.filter(a => a.class === className.value);
 
       // Get existing numbers
       const numbers = sameClass.map(a =>
-        parseInt(a.id.replace(className, ''), 10)
+        parseInt(a.id.replace(className.value, ''), 10)
       ).sort((a, b) => a - b);
 
       // Find the smallest missing number
@@ -120,13 +149,17 @@ export function Annotator({imageUrl, savedBoxes = [], annotationColor, onSave, c
         newNumber = numbers.length + 1;
       }
 
-      const cls = classes[className];
-      const newId = `${className}${newNumber}`;
+      const cls = classes[className.value];
+      const newId = `${className.value}${newNumber}`;
 
       boxProps.id = newId;
-      boxProps.class = className;
-      boxProps.box.color = cls.color;
-      newRectsRef.current.push(boxProps);
+      boxProps.class = className.value;
+      boxProps.color = cls.color;
+
+      annotationsRef.current.push(boxProps);
+      setAnnotations([...annotationsRef.current]);
+    } else {
+      setAnnotations(annotationsRef.current);
     }
 
     setPopupPos(null);
@@ -171,7 +204,7 @@ export function Annotator({imageUrl, savedBoxes = [], annotationColor, onSave, c
       return;
     }
 
-    newRectsRef.current.push(boxProps);
+    setAnnotations((prev) => [...prev, boxProps]);
     setPopupPos({
       x: (box.x + box.width) * scale.x,
       y: (box.y + box.width) * scale.y
@@ -185,6 +218,10 @@ export function Annotator({imageUrl, savedBoxes = [], annotationColor, onSave, c
   useEffect(() => {
     const canvas = canvasRef.current;
 
+    if (!imgUrl && !canvas) {
+      return;
+    }
+
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -194,33 +231,39 @@ export function Annotator({imageUrl, savedBoxes = [], annotationColor, onSave, c
       canvas.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [scale]);
+  }, [scale, imgUrl]);
 
   return html`
-    <div class="relative" style="width: ${containerWidth}px; height: ${containerHeight}px;">
-      <img
-        ref=${imageRef}
-        src=${imageUrl}
-        alt="annotatable"
-        class="absolute top-0 left-0 w-full h-full object-contain"
-      />
+    ${!imgUrl
+      ? html`<p class="py-16 px-32 h2-c font-semibold">add an image for annotation</p>`
+      : html`
+          <div class="relative" style="width: ${containerWidth}px; height: ${containerHeight}px;">
+            <img
+              src=${imgUrl}
+              ref=${imageRef}
+              alt="annotatable"
+              class="absolute top-0 left-0 w-full h-full object-contain"
+            />
 
-      <canvas
-        ref=${canvasRef}
-        width=${containerWidth}
-        height=${containerHeight}
-        class="absolute top-0 left-0 cursor-crosshair"
-      />
+            <canvas
+              ref=${canvasRef}
+              width=${containerWidth}
+              height=${containerHeight}
+              class="absolute top-0 left-0 cursor-crosshair"
+            />
 
-      ${popupPos &&
-        html`
-          <${Popup}
-            labels=${labels}
-            popupPos=${popupPos}
-            onSelect=${handleLabelSelect}
-            title="select a class"
-          />
-        `}
-    </div>
+            ${popupPos &&
+              html`
+                <${Popup}
+                  labels=${labels}
+                  popupPos=${popupPos}
+                  title="select a class"
+                  onSelect=${handleLabelSelect}
+                />
+              `
+            }
+          </div>
+        `
+    }
   `;
-};
+}

@@ -26,4 +26,8 @@
   .thin-btn-c {
     @apply btn-c bg-gray-50 text-brand-color border-brand-color;
   }
+
+  .form-c {
+    @apply w-full border px-3 py-2 rounded text-c bg-white border-brand-color focus:border-brand-color focus:outline-none;
+  }
 }
