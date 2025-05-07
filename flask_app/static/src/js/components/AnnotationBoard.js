@@ -260,7 +260,7 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
     });
 
     project.append('name', formProjectName.trim());
-    project.append('classes', classes);
+    project.append('classes', JSON.stringify(classes));
 
     return project;
   };
