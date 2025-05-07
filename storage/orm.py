@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 class BaseORM:
-    id = db.Column(db.String(60), primary_key=True, default=uuid.uuid4, nullable=False)
+    id = db.Column(db.String(60), primary_key=True, default=lambda: str(uuid.uuid4()), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -15,7 +15,16 @@ class ProjectORM(BaseORM, db.Model):
     __tablename__ = 'projects'
     name = db.Column(db.String(256), nullable=False)
     user_id = db.Column(db.String(60), db.ForeignKey('users.id'), nullable=False)
+    categories = db.relationship('Category', backref='project', cascade='all')
     images = db.relationship('Image', backref='project', cascade='all')
+
+
+class CategoryORM(BaseORM, db.Model):
+    __tablename__ = 'categories'
+    project_id = db.Column(db.String(60), db.ForeignKey('projects.id'), nullable=False)
+    name = db.Column(db.String(64), nullable=False)
+    color = db.Column(db.String(16), nullable=False)
+    annotations = db.relationship('Annotation', backref='category', cascade='all')
 
 
 class ImageORM(BaseORM, db.Model):
@@ -28,17 +37,16 @@ class ImageORM(BaseORM, db.Model):
 class AnnotationORM(BaseORM, db.Model):
     __tablename__ = 'annotations'
     image_id = db.Column(db.String(60), db.ForeignKey('images.id'), nullable=False)
+    category_id = db.Column(db.String(60), db.ForeignKey('categories.id'), nullable=False)
     x = db.Column(db.Float, nullable=False)
     y = db.Column(db.Float, nullable=False)
     width = db.Column(db.Float, nullable=False)
     height = db.Column(db.Float, nullable=False)
-    category = db.Column(db.String(64), nullable=False)
-    color = db.Column(db.String(16), nullable=False)
 
 
 class UserORM(BaseORM, db.Model):
     __tablename__ = 'users'
-    username = db.Column(db.String(60), nullable=False)
+    username = db.Column(db.String(60), nullable=False, unique=True)
     password = db.Column(db.String(60), nullable=False)
     projects = db.relationship('Project', backref='user', cascade='all')
 

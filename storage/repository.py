@@ -1,8 +1,8 @@
 # from uuid import uuid4
 # from storage import db
-from typing import List
-from domain.model import User, Project, Image, Annotation
-from storage.orm import UserORM, ProjectORM, ImageORM, AnnotationORM
+from typing import Any
+from domain.model import User, Project, Image, Annotation, Category
+from storage.orm import UserORM, ProjectORM, ImageORM, AnnotationORM, CategoryORM
 from sqlalchemy.orm import Session
 from abc import ABC, abstractmethod
 
@@ -19,38 +19,10 @@ class UserRepository(ABC):
     def get(self, username: str) -> User | None:
         raise NOT_IMPLEMENTED_ERROR
 
-    @abstractmethod
-    def get_by_id(self, id: str) -> User | None:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def commit(self) -> None:
-        raise NOT_IMPLEMENTED_ERROR
-
 
 class ProjectRepository(ABC):
     @abstractmethod
     def add(self, project: Project) -> None:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def get_by_id(self, id: str) -> Project | None:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def list(self) -> list[Project]:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def remove(self, id: str) -> None:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def update(self, **kwargs) -> None:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def commit(self) -> None:
         raise NOT_IMPLEMENTED_ERROR
 
 
@@ -59,24 +31,10 @@ class AnnotationRepository(ABC):
     def add(self, annotation: Annotation) -> None:
         raise NOT_IMPLEMENTED_ERROR
 
-    @abstractmethod
-    def get_by_id(self, id: str) -> Annotation | None:
-        raise NOT_IMPLEMENTED_ERROR
 
+class CategoryRepository(ABC):
     @abstractmethod
-    def list(self) -> list[Annotation]:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def remove(self, id: str) -> None:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def update(self, **kwargs) -> None:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def commit(self) -> None:
+    def add(self, category: Category) -> None:
         raise NOT_IMPLEMENTED_ERROR
 
 
@@ -85,39 +43,45 @@ class ImageRepository(ABC):
     def add(self, image: Image) -> None:
         raise NOT_IMPLEMENTED_ERROR
 
-    @abstractmethod
-    def get_by_id(self, id: str) -> Image | None:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def list(self) -> list[Image]:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def remove(self, id: str) -> None:
-        raise NOT_IMPLEMENTED_ERROR
-
-    @abstractmethod
-    def commit(self) -> None:
-        raise NOT_IMPLEMENTED_ERROR
-
 
 ## Implementations of the Model Repositories
 class BaseSQLAlchemyRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, Model: Any, Orm: Any) -> None:
+        self.Model = Model
+        self.Orm = Orm
         self._session = session
 
-    def commit(self) -> None:
-        self._session.commit()
+        super().__init__()
+
+    def get_by_id(self, id: str) -> Any:
+        model_orm = self._session.query(self.Orm).filter_by(id=id).first()
+        if model_orm:
+            return self.Model(**model_orm)
+
+        return None
+
+    def list(self) -> list:
+        return [
+            self.Model(**model_orm)
+            for model_orm in self._session.query(self.Orm).all()
+        ]
+
+    def remove(self, id: str) -> None:
+        model_orm = self._session.query(self.Orm).filter_by(id=id).first()
+        self._session.delete(model_orm)
+
+    def update(self, id: str, **kwargs) -> None:
+        model_orm = self._session.query(self.Orm).filter_by(id=id).first()
+        for k, v in kwargs.items():
+            setattr(model_orm, k, v)
 
 
-class SQLAlchemyUserRepsitory(UserRepository, BaseSQLAlchemyRepository):
-    def __init__(self, session: Session) -> None:
-        super().__init__(session)
-
-    def add(self, user: User) -> None:
+class SQLAlchemyUserRepsitory(BaseSQLAlchemyRepository, UserRepository):
+    def add(self, user: User) -> str:
         user_orm = UserORM(username=user.username, password=user.password)
         self._session.add(user_orm)
+
+        return user_orm.id
 
     def get(self, username: str) -> User | None:
         user_orm = self._session.query(UserORM).filter_by(username=username).first()
@@ -126,76 +90,30 @@ class SQLAlchemyUserRepsitory(UserRepository, BaseSQLAlchemyRepository):
 
         return None
 
-    def get_by_id(self, id: str) -> User | None:
-        user_orm = self._session.query(UserORM).filter_by(id=id).first()
-        if user_orm:
-            return User(username=user_orm.username, password=user_orm.password)
 
-        return None
-
-
-class SQLAlchemyProjectRepository(ProjectRepository, BaseSQLAlchemyRepository):
-    def __init__(self, session: Session) -> None:
-        super().__init__(session)
-
-    def add(self, project: Project) -> None:
-        project_orm = ProjectORM(name=project.name)
+class SQLAlchemyProjectRepository(BaseSQLAlchemyRepository, ProjectRepository):
+    def add(self, project: Project, user_id: str) -> str:
+        project_orm = ProjectORM(name=project.name, user_id=user_id)
         self._session.add(project_orm)
 
-    def get_by_id(self, id: str) -> Project | None:
-        project_orm = self._session.query(ProjectORM).filter_by(id=id).first()
-        if project_orm:
-            return Project(name=project_orm.name)
-
-        return None
-
-    def list(self) -> list[Project]:
-        return [
-            Project(name=project_orm.name)
-            for project_orm in self._session.query(ProjectORM).all()
-        ]
-
-    def remove(self, id: str) -> None:
-        project_orm = self._session.query(ProjectORM).filter_by(id=id).first()
-        self._session.delete(project_orm)
-
-    def update(self, id: str, **kwargs) -> None:
-        project_orm = self._session.query(ProjectORM).filter_by(id=id).first()
-        for k, v in kwargs.items():
-            setattr(project_orm, k, v)
+        return project_orm.id
 
 
-class SQLAlchemyImageRepository(ImageRepository, BaseSQLAlchemyRepository):
-    def __init__(self, session: Session) -> None:
-        super().__init__(session)
-
-    def add(self, image: Image) -> None:
-        image_orm = ImageORM(url=image.url)
+class SQLAlchemyImageRepository(BaseSQLAlchemyRepository, ImageRepository):
+    def add(self, image: Image, project_id: str) -> str:
+        image_orm = ImageORM(url=image.url, project_id=project_id)
         self._session.add(image_orm)
 
-    def get_by_id(self, id: str) -> Image | None:
-        image_orm = self._session.query(ImageORM).filter_by(id=id).first()
-        if image_orm:
-            return Image(url=image_orm.url)
-
-        return None
-
-    def list(self) -> list[Image]:
-        return [
-            Image(url=image_orm.url)
-            for image_orm in self._session.query(ImageORM).all()
-        ]
-
-    def remove(self, id: str) -> None:
-        image_orm = self._session.query(ImageORM).filter_by(id=id).first()
-        self._session.delete(image_orm)
-
-    def update(self, id: str, **kwargs) -> None:
-        image_orm = self._session.query(ImageORM).filter_by(id=id).first()
-        for k, v in kwargs.items():
-            setattr(image_orm, k, v)
+        return image_orm.id
 
 
 class SQLAlchemyAnnotationRepository(AnnotationRepository, BaseSQLAlchemyRepository):
-    def __init__(self, session: Session) -> None:
-        super().__init__(session)
+    pass
+
+
+class SQLAlchemyCategoryRepository(CategoryRepository, BaseSQLAlchemyRepository):
+    def add(self, category: Category, project_id: str) -> str:
+        category_orm = CategoryORM(name=category.name, color=category.color, project_id=project_id)
+        self._session.add(category_orm)
+
+        return category_orm.id

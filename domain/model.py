@@ -3,11 +3,11 @@ import copy
 
 class BaseModel:
     def to_dict(self):
-        user_dict = copy.deepcopy(vars(self))
-        if 'password' in user_dict:
-            del user_dict['password']
+        model_dict = copy.deepcopy(vars(self))
+        if 'password' in model_dict:
+            del model_dict['password']
 
-        return user_dict
+        return model_dict
 
 
 class User(BaseModel):
@@ -17,23 +17,24 @@ class User(BaseModel):
 
 
 class Project(BaseModel):
-    def __init__(self, name: str, classes: list[dict[str, str]]) -> None:
+    def __init__(self, name: str) -> None:
         self.name = name
-        self.classes =
 
 
 class Annotation(BaseModel):
-    def __init__(
-        self,
-        start_point: dict[str, float],
-        dimension: dict[str, float],
-        category: dict[str, str]
-    ) -> None:
-        self.start_point = start_point
-        self.dimension = dimension
-        self.category = category
+    def __init__(self, x: float, y: float, width: float, height: float) -> None:
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
 
 
 class Image(BaseModel):
     def __init__(self, url: str) -> None:
         self.url = url
+
+
+class Category(BaseModel):
+    def __init__(self, name: str, color: str) -> None:
+        self.name = name
+        self.color = color
