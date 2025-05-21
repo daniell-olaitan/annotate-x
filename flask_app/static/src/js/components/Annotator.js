@@ -4,31 +4,28 @@ import { Drawer } from '../utils.js';
 import htm from 'https://esm.sh/htm';
 import { h } from 'https://esm.sh/preact';
 import { useRef, useState, useEffect } from 'https://esm.sh/preact/hooks';
+import { v4 as uuidv4 } from 'https://jspm.dev/uuid';
 
 const html = htm.bind(h);
 
 export function Annotator({
-  onSave,
   classes,
-  imageUrl,
+  image,
   annotations,
   setAnnotations,
 }) {
+  const imageAnnotationsRef = useRef([]);
+
   const containerWidth = 900;
   const containerHeight = 400;
 
   const annotationColor = 'red';
 
-  const keys = Object.keys(classes);
-  const labels = keys.map(k => {
-    return {key: k, value: k}
-  });
+  const labels = classes.map(cls => ({id: cls.name, value: cls}));
 
-  const annotationsRef = useRef([...annotations]);
   const drawerRef = useRef(new Drawer());
 
-  const [scale, setScale] = useState({ x: 1, y: 1 });
-  const [naturalSize, setNaturalSize] = useState({ width: 1, height: 1 });
+  const [scale, setScale] = useState(null);
 
   const imageRef = useRef(null);
   const canvasRef = useRef(null);
@@ -39,72 +36,70 @@ export function Annotator({
 
   const [popupPos, setPopupPos] = useState(null);
 
-  const [imgUrl, setImgUrl] = useState('');
-
   useEffect(() => {
-    annotationsRef.current = [...annotations];
-  }, [annotations]);
+    const canvas = canvasRef.current;
 
-  useEffect(() => {
-    const img = imageRef.current;
+    if (!image || !canvas || !annotations) return;
 
-    if (!img) {
-      return
-    }
+    const scaleX = containerWidth / image.width;
+    const scaleY = containerHeight / image.height;
 
-    const naturalWidth = img.naturalWidth;
-    const naturalHeight = img.naturalHeight;
-
-    setNaturalSize({ width: naturalWidth, height: naturalHeight });
-
-    const scaleX = containerWidth / naturalWidth;
-    const scaleY = containerHeight / naturalHeight;
+    imageAnnotationsRef.current = annotations[image.id];
     setScale({ x: scaleX, y: scaleY });
-
-    const ctx = canvasRef.current?.getContext('2d');
-    drawerRef.current.ctx = ctx;
-
-    drawAll(scaleX, scaleY);
-  }, [imgUrl]);
+    drawerRef.current.ctx = canvas.getContext('2d');
+    drawAnnotations(scaleX, scaleY);
+  }, [image]);
 
   useEffect(() => {
-    if (imageUrl && Object.keys(imageUrl).length > 0) {
-      setImgUrl(Object.values(imageUrl)[0]);
-    }
-  }, [imageUrl]);
+    if (!annotations || !scale || !image) return;
 
-  useEffect(() => {
-    drawAll(scale.x, scale.y);
+    imageAnnotationsRef.current = annotations[image.id];
+    drawAnnotations(scale.x, scale.y);
   }, [annotations]);
 
-  const getCurrentBox = (startPoint, currentPoint) => {
+  const getCurrentAnnotation = (startPoint, currentPoint) => {
     return {
-      id: null,
-      class: null,
-      color: annotationColor,
-      box: {
-        x: Math.min(startPoint.x, currentPoint.x) / scale.x,
-        y: Math.min(startPoint.y, currentPoint.y) / scale.y,
-        width: Math.abs(currentPoint.x - startPoint.x) / scale.x,
-        height: Math.abs(currentPoint.y - startPoint.y) / scale.y,
+      id: uuidv4(),
+      x: Math.min(startPoint.x, currentPoint.x) / scale.x,
+      y: Math.min(startPoint.y, currentPoint.y) / scale.y,
+      width: Math.abs(currentPoint.x - startPoint.x) / scale.x,
+      height: Math.abs(currentPoint.y - startPoint.y) / scale.y,
+      category: {
+        id: uuidv4(),
+        name: null,
+        color: annotationColor
       }
     };
   };
 
-  const drawAll = (scaleX, scaleY) => {
+  const drawAnnotations = (scaleX, scaleY) => {
     const drawer = drawerRef.current;
+    const categories = {};
+    const labels = [];
 
-    const drawBox = (boxProps) => {
-      const box = boxProps.box;
+    annotations[image.id].forEach(a => {
+      const category = a.category.name;
 
-      drawer.color = boxProps.color;
-      drawer.drawRect(box, scaleX, scaleY);
+      if (category) {
+        if (category in categories) {
+          categories[category] += 1;
+        } else {
+          categories[category] = 1;
+        }
 
-      if (boxProps.id) {
+        labels.push(`${category}${categories[category]}`);
+      }
+    });
+
+    const drawAnnotation = (annotatn, text) => {
+      drawer.color = annotatn.category.color;
+      drawer.drawRect(annotatn, scaleX, scaleY);
+
+      if (annotatn.category.name) {
         const label = {
-          x: box.x,
-          y: box.y,
-          text: boxProps.id
+          x: annotatn.x,
+          y: annotatn.y,
+          text: text
         };
 
         drawer.drawLabel(label, scaleX, scaleY);
@@ -119,51 +114,31 @@ export function Annotator({
       height: containerHeight
     });
 
-    annotationsRef.current.forEach(drawBox);
+    imageAnnotationsRef.current.forEach((annotatn, index) => {
+      const text = labels[index];
+      drawAnnotation(annotatn, text);
+    });
 
     // Draw active box
     if (isDrawingRef.current) {
-      const boxProps = getCurrentBox(startPoint.current, currentPoint.current);
-      drawBox(boxProps);
+      const currentAnnotion = getCurrentAnnotation(startPoint.current, currentPoint.current);
+      drawAnnotation(currentAnnotion, null);
     }
   };
 
-  const handleLabelSelect = (className) => {
-    const boxProps =  annotationsRef.current.pop();
+  const handleClassSelect = (cls) => {
+    const annotatn = imageAnnotationsRef.current.pop();
 
-    if (className && Object.keys(className).length > 0) {
-      const sameClass = annotationsRef.current.filter(a => a.class === className.value);
+    if (cls) {
+      annotatn.category.name = cls.name;
+      annotatn.category.color = cls.color;
 
-      // Get existing numbers
-      const numbers = sameClass.map(a =>
-        parseInt(a.id.replace(className.value, ''), 10)
-      ).sort((a, b) => a - b);
-
-      // Find the smallest missing number
-      let newNumber = 1;
-      for (let i = 0; i < numbers.length; i++) {
-        if (numbers[i] !== i + 1) {
-          newNumber = i + 1;
-          break;
-        }
-        newNumber = numbers.length + 1;
-      }
-
-      const cls = classes[className.value];
-      const newId = `${className.value}${newNumber}`;
-
-      boxProps.id = newId;
-      boxProps.class = className.value;
-      boxProps.color = cls.color;
-
-      annotationsRef.current.push(boxProps);
-      setAnnotations([...annotationsRef.current]);
-    } else {
-      setAnnotations(annotationsRef.current);
+      imageAnnotationsRef.current.push(annotatn);
+      setAnnotations({...annotations, [image.id]: imageAnnotationsRef.current});
     }
 
+    drawAnnotations(scale.x, scale.y);
     setPopupPos(null);
-    drawAll(scale.x, scale.y);
   };
 
   const handleMouseDown = (e) => {
@@ -188,39 +163,38 @@ export function Annotator({
       y: e.clientY - rect.top,
     };
 
-    drawAll(scale.x, scale.y);
+    drawAnnotations(scale.x, scale.y);
   };
 
   const handleMouseUp = () => {
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
 
-    const boxProps = getCurrentBox(startPoint.current, currentPoint.current);
-    const box = boxProps.box;
+    const currentAnnotion = getCurrentAnnotation(
+      startPoint.current,
+      currentPoint.current
+    );
 
     // Ignore very small boxes
-    if (box.width < 20 || box.height < 20) {
-      drawAll(scale.x, scale.y);
+    if (currentAnnotion.width < 10 || currentAnnotion.height < 10) {
+      drawAnnotations(scale.x, scale.y);
       return;
     }
 
-    setAnnotations((prev) => [...prev, boxProps]);
-    setPopupPos({
-      x: (box.x + box.width) * scale.x,
-      y: (box.y + box.width) * scale.y
-    });
+    imageAnnotationsRef.current.push(currentAnnotion);
+    setAnnotations({...annotations, [image.id]: imageAnnotationsRef.current});
 
-    if (onSave) {
-      onSave(box); // Save to backend or local state
-    }
+    setPopupPos({
+      x: (currentAnnotion.x + currentAnnotion.width) * scale.x,
+      y: (currentAnnotion.y + currentAnnotion.height) * scale.y
+    });
   };
 
   useEffect(() => {
+    const img = imageRef.current;
     const canvas = canvasRef.current;
 
-    if (!imgUrl && !canvas) {
-      return;
-    }
+    if (!img || !canvas) return;
 
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mousemove', handleMouseMove);
@@ -231,25 +205,25 @@ export function Annotator({
       canvas.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [scale, imgUrl]);
+  }, [scale, image]);
 
   return html`
-    ${!imgUrl
+    ${!image
       ? html`<p class="py-16 px-32 h2-c font-semibold">add an image for annotation</p>`
       : html`
           <div class="relative" style="width: ${containerWidth}px; height: ${containerHeight}px;">
             <img
-              src=${imgUrl}
+              src=${image.url}
               ref=${imageRef}
               alt="annotatable"
-              class="absolute top-0 left-0 w-full h-full object-contain"
+              class="absolute top-0 left-0 w-full h-full object-contain z-10"
             />
 
             <canvas
               ref=${canvasRef}
               width=${containerWidth}
               height=${containerHeight}
-              class="absolute top-0 left-0 cursor-crosshair"
+              class="absolute top-0 left-0 cursor-crosshair z-20"
             />
 
             ${popupPos &&
@@ -258,7 +232,7 @@ export function Annotator({
                   labels=${labels}
                   popupPos=${popupPos}
                   title="select a class"
-                  onSelect=${handleLabelSelect}
+                  onSelect=${handleClassSelect}
                 />
               `
             }

@@ -53,12 +53,12 @@ export function Popup({ labels, onSelect, onContextMenu, popupPos, title }) {
           label => html`
             <li>
               <button
-                key=${label.key}
+                key=${label.id}
                 class="text-sm px-3 py-1 rounded hover:bg-blue-100 w-full text-left text-c"
-                onClick=${(e) => onSelect(label, e)}
-                onContextMenu=${onContextMenu ? (e) => onContextMenu(label, e) : undefined}
+                onClick=${(e) => onSelect(label.value, e)}
+                onContextMenu=${onContextMenu ? (e) => onContextMenu(label.value, e) : undefined}
               >
-                ${label.key}
+                ${label.id}
               </button>
             </li>
           `

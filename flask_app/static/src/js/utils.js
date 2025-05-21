@@ -11,7 +11,6 @@ export class Drawer {
     this.ctx.strokeStyle = this.color;
     this.ctx.fillStyle = this.color;
     this.ctx.lineWidth = this.lineWidth;
-
   }
 
   drawRect(rect, scaleX = 1, scaleY = 1) {
@@ -32,5 +31,33 @@ export class Drawer {
 
   clearRect(rect) {
     this.ctx.clearRect(rect.x, rect.y, rect.width, rect.height);
+  }
+}
+
+export const saveAnnotation = async ({ id, body, setError, setSaving }) => {
+  setSaving('Saving...');
+
+  try {
+    const res = await fetch(`/images/${id}/annotations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: body
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        window.location.href = '/signin';
+      }
+      else {
+        throw new Error('Failed to save changes');
+      }
+    }
+  } catch (err) {
+    setError(err.message);
+    setTimeout(() => setError(''), 3000);
+  } finally {
+    setSaving('');
   }
 }

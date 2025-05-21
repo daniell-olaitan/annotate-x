@@ -12,13 +12,13 @@ export function Menu({ title, items = [], onSelect, onContextMenu, getItemClass}
           html`
             <li>
               <button
-                key=${item}
+                key=${item.id}
                 class="text-sm px-3 py-1 truncate hover:bg-blue-100 w-full text-left text-c ${getItemClass ? getItemClass(item) : ''}"
                 onClick=${onSelect ? (e) => onSelect(item, e) : undefined}
                 onContextMenu=${onContextMenu ? (e) => onContextMenu(item, e) : undefined}
-                title=${item}
+                title=${item.value}
               >
-                ${item}
+                ${item.value}
               </button>
             </li>
           `

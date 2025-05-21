@@ -5,6 +5,7 @@ import { ImageList } from './ImageList.js';
 import { Annotator } from './Annotator.js';
 import { AnnotationList } from './AnnotationList.js';
 import { Form } from './Form.js';
+import { saveAnnotation } from '../utils.js';
 
 import htm from 'https://esm.sh/htm';
 import { h } from 'https://esm.sh/preact';
@@ -15,33 +16,27 @@ const html = htm.bind(h);
 export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) {
   const projectList = useRef([]);
   const projectListTitle = useRef('no projects');
-  let imageNamesRef = useRef([]);
 
-  const [project, setProject] = useState({});
-  const [projectName, setProjectName] = useState('');
-  const [projectClasses, setProjectClasses] = useState({});
+  const [project, setProject] = useState(null);
 
   const [formImages, setFormImages] = useState([]);
   const [formClasses, setFormClasses] = useState('');
   const [formProjectName, setFormProjectName] = useState('');
 
-  const annotationSet = useRef({});
-  const [annotations, setAnnotations] = useState([]);
+  const [annotations, setAnnotations] = useState(null);
+  const [annotationList, setAnnotationList] = useState([]);
 
-  const [imageUrls, setImageUrls] = useState({});
-
-  const [imageUrl, setImageUrl] = useState({});
-  const [selectedImage, setSelectedImage] = useState('');
+  const [images, setImages] = useState([]);
+  const [image, setImage] = useState(null);
 
   const [popupPos, setPopupPos] = useState(null);
   const [popupPosNew, setPopupPosNew] = useState(null);
-  const [popupPosEdit, setPopupPosEdit] = useState(null);
   const [subPopupPos, setSubPopupPos] = useState(null);
-  const [popupPosAdd, setPopupPosAdd] = useState(null);
+  const [popupPosAddImage, setPopupPosAddImage] = useState(null);
   const [projectPopupPos, setProjectPopupPos] = useState(null);
   const [subPopupTitle, setSubPopupTitle] = useState('');
 
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [projectToBeDeleted, setProjectToBeDeleted] = useState(null);
 
   useEffect(() => {
     const fetchProject = async (pId) => {
@@ -53,7 +48,15 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
 
         if (!res.ok) throw new Error('Failed to fetch project');
         data = await res.json();
-        setProject(data.data);
+
+        const proj = data.data;
+        setProject({
+          id: proj.id,
+          name: proj.name,
+          categories: proj.categories
+        });
+
+        setImages(proj.images);
       } catch (err) {
         setError(err.message);
         setTimeout(() => setError(''), 3000);
@@ -68,81 +71,78 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
   }, [projectId]);
 
   useEffect(() => {
-    const imgUrls = {};
+    if (!images) return;
 
-    if (Object.keys(project).length > 0) {
-      project.images.forEach(img => {
-        const parts = img.url.split('/');
-        let fileName = parts[parts.length - 1];
+    const imageAnnotations = {};
 
-        fileName = fileName.split('.').slice(0, -1).join('.');
-        imgUrls[fileName] = img.url;
+    images.forEach(img => {
+      imageAnnotations[img.id] = img.annotations;
+    });
 
-        annotationSet.current[fileName] = img.annotations;
-      });
-
-      imageNamesRef.current = Object.keys(imgUrls);
-
-      setImageUrls(imgUrls);
-      setProjectName(project.name);
-      setProjectClasses(project.classes);
-
-      setSelectedImage(imageNamesRef.current[0]);
-    }
-  }, [project]);
-
-  useEffect(() => {
-    if (selectedImage) {
-      setImageUrl({[selectedImage]: imageUrls[selectedImage]});
-    } else {
-      setImageUrl({});
-    }
-  }, [selectedImage]);
-
-  useEffect(() => {
-    if (Object.keys(imageUrl).length > 0) {
-      setAnnotations(annotationSet.current[Object.keys(imageUrl)[0]]);
-    }
-  }, [imageUrl]);
-
-  useEffect(() => {
-    if (Object.keys(imageUrl).length > 0) {
-      annotationSet.current[Object.keys(imageUrl)[0]] = annotations;
-    }
-  }, [annotations]);
+    if (!image) setImage(images[0]);
+    setAnnotations(imageAnnotations);
+  }, [images]);
 
   const handleClear = (e) => {
-    setAnnotations([]);
+    if (image) {
+      setAnnotations({...annotations, [image.id]: []});
+    }
   };
 
   const handleNext = (e) => {
-    let img;
-    const imageNames = imageNamesRef.current;
-    const index = imageNames.findIndex(imageName => imageName === selectedImage);
+    saveAnnotation({
+      id: image.id,
+      body: JSON.stringify(annotations[image.id]),
+      setError: setError,
+      setSaving: setSaving
+    });
+
+    const index = images.findIndex(img => img.id === image.id);
     const nextImage = index + 1;
 
-    if (nextImage === imageNames.length) {
-      img = imageNames[0];
+    if (nextImage === images.length) {
+      setImage(images[0]);
     } else {
-      img = imageNames[nextImage];
+      setImage(images[nextImage]);
     }
-
-    setSelectedImage(img);
   };
 
   const handlePrev = (e) => {
-    let img;
-    const imageNames = imageNamesRef.current;
-    const index = imageNames.findIndex(imageName => imageName === selectedImage);
+    saveAnnotation({
+      id: image.id,
+      body: JSON.stringify(annotations[image.id]),
+      setError: setError,
+      setSaving: setSaving
+    });
+
+    const index = images.findIndex(img => img.id === image.id);
     const prevImage = index - 1;
 
     if (prevImage === -1) {
-      img = imageNames[imageNames.length-1];
+      setImage(images[images.length-1]);
     } else {
-      img = imageNames[prevImage];
+      setImage(images[prevImage]);
     }
+  };
 
-    setSelectedImage(img);
+  const handleSave = (e) => {
+    saveAnnotation({
+      id: image.id,
+      body: JSON.stringify(annotations[image.id]),
+      setError: setError,
+      setSaving: setSaving
+    });
+  };
+
+  const handleFinish = (e) => {
+    saveAnnotation({
+      id: image.id,
+      body: JSON.stringify(annotations[image.id]),
+      setError: setError,
+      setSaving: setSaving
+    });
+
+    window.location.href = '/';
   };
 
   const handleProjectOptionClick = (e) => {
@@ -159,14 +159,13 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
 
     const x = e.clientX;
     const y = e.clientY;
-
-    if (option && Object.keys(option).length > 0) {
-      if (option.value === 'new') {
+    if (option) {
+      if (option.id === 'new') {
         setFormClasses('');
         setFormProjectName('');
 
         setPopupPosNew({x, y});
-      } else if (option.value === 'open') {
+      } else if (option.id === 'open') {
         projectList.current = [];
         projectListTitle.current = 'no projects';
 
@@ -177,17 +176,26 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
             let data;
             const res = await fetch('/projects');
 
-            if (!res.ok) throw new Error('Failed to fetch projects');
-            data = await res.json();
-            if (Object.keys(data.data).length > 0) {
-              projectListTitle.current = 'Your Projects';
-              for (const [name, id] of Object.entries(data.data)) {
-                projectList.current.push({key: name, value: id});
+            if (!res.ok) {
+              if (res.status === 401) {
+                window.location.href = '/signin';
+              }
+              else {
+                throw new Error('Failed to fetch projects');
+              }
+            } else {
+              data = await res.json();
+
+              const projs = data.data;
+              if (projs.length > 0) {
+                projectListTitle.current = 'Your Projects';
+                projs.forEach(proj => {
+                  projectList.current.push({id: proj.name, value: proj});
+                });
               }
             }
 
             setPopupPos({x, y});
-
           } catch (err) {
             setError(err.message);
             setTimeout(() => setError(''), 3000);
@@ -197,15 +205,14 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
         };
 
         fetchProjects();
-      } else if (option.value === 'edit') {
-        setFormClasses(Object.keys(project.classes).join(';'));
-        setFormProjectName(project.name);
-
-        setPopupPosEdit({x, y});
-      } else if (option.value === 'images') {
-        setPopupPosAdd({x, y});
-      } else if (option.value === 'export') {
-        // TODO: export the project
+      } else if (option.id === 'images') {
+        if (projectId) {
+          setPopupPosAddImage({x, y});
+        }
+      } else if (option.id === 'export') {
+        if (projectId) {
+          // TODO: export the project
+        }
       }
     }
 
@@ -213,27 +220,55 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
   };
 
   const handleProjectSelect = (project) => {
-    if (project && Object.keys(project).length > 0) {
-      window.location.href = `/project/${project.value}`;
+    if (project) {
+      window.location.href = `/project/${project.id}`;
     }
 
     setPopupPos(null);
   };
 
-  const onContextMenu = (label, e) => {
+  const onDeleteContextMenu = (proj, e) => {
     e.preventDefault();
 
     const x = e.clientX;
     const y = e.clientY;
 
-    setSubPopupTitle(label.key);
-    setSelectedProjectId(label.value);
+    setSubPopupTitle(proj.name);
+    setProjectToBeDeleted(proj);
     setSubPopupPos({x, y});
   };
 
-  const handleSubPopupItemSelect = (item, e) => {
-    if (item && Object.keys(item).length > 0) {
-        // TODO: delete project
+  const handleDeleteProject = (proj, e) => {
+    if (proj) {
+      const deleteProject = async (pId) => {
+        setSaving('Deleting project...');
+
+        try {
+          const res = await fetch(`/projects/${pId}`, {
+            method: 'DELETE'
+          });
+
+          if (!res.ok) {
+            if (res.status === 401) {
+              window.location.href = '/signin';
+            }
+            else {
+              throw new Error('Failed to delete project');
+            }
+          }
+
+          if (proj.id === projectId) {
+            window.location.href = '/';
+          }
+        } catch (err) {
+          setError(err.message);
+          setTimeout(() => setError(''), 3000);
+        } finally {
+          setSaving('');
+        }
+      };
+
+      deleteProject(proj.id);
     }
 
     setSubPopupPos(null);
@@ -241,21 +276,32 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
 
   const createProject = () => {
     const colors = [
-      "#F0F8FF", "#E6E6FA", "#D3D3D3", "#DCDCDC", "#F5F5F5", "#FFF0F5", "#FAFAD2", "#FFFACD",
-      "#FFFAF0", "#F0FFF0", "#F5FFFA", "#F0FFCC", "#FFFFE0", "#E0FFFF", "#E0F7FA", "#B2EBF2",
-      "#80DEEA", "#4DD0E1", "#26C6DA", "#00BCD4", "#00ACC1", "#0097A7", "#00796B", "#004D40",
-      "#00897B", "#009688", "#00796B", "#004D40", "#4CAF50", "#388E3C", "#2E7D32", "#1B5E20",
-      "#C2185B", "#D32F2F", "#C2185B", "#880E4F", "#8E24AA", "#7B1FA2", "#6A1B9A", "#4A148C",
-      "#9C27B0", "#8E24AA", "#673AB7", "#512DA8", "#3F51B5", "#303F9F", "#1E88E5", "#1976D2",
-      "#1565C0", "#0288D1", "#039BE5"
+      "red",
+      "blue",
+      "green",
+      "orange",
+      "purple",
+      "teal",
+      "yellow",
+      "pink",
+      "brown",
+      "cyan"
     ];
 
-    const classes = []
+    const classes = [];
+    const chosen = [];
     const project = new FormData();
 
-    formClasses.split(';').forEach((cls, index) => {
+    formClasses.split(';').forEach(cls => {
       if (cls.trim()) {
-        classes.push({[cls.trim()]: colors[index]});
+        let randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+        while (chosen.includes(randomColor)) {
+          randomColor = colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        classes.push({[cls.trim()]: randomColor});
+        chosen.push(randomColor);
       }
     });
 
@@ -278,7 +324,15 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
           body: project,
         });
 
-        if (!res.ok) throw new Error('Failed to create project');
+        if (!res.ok) {
+          if (res.status === 401) {
+            window.location.href = '/signin';
+          }
+          else {
+            throw new Error('Failed to create project');
+          }
+        }
+
         data = await res.json();
         window.location.href = `/project/${data.data.id}`;
       } catch (err) {
@@ -307,66 +361,30 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
     setPopupPosNew(null);
   };
 
-  const handleEditProjectSubmit = (e) => {
-    e.preventDefault(); e.preventDefault();
-
-    const editProject = async (project) => {
-      setSaving('Saving...');
-
-      try {
-        let data;
-        const res = await fetch(`/projects/${projectId}`, {
-          method: 'PATCH',
-          body: project,
-        });
-
-        if (!res.ok) throw new Error('Failed to edit project');
-        data = await res.json();
-        window.location.href = `/project/${data.data.id}`;
-      } catch (err) {
-        setError(err.message);
-        setTimeout(() => setError(''), 3000);
-      } finally {
-        setSaving('');
-      }
-    };
-
-    if (!formProjectName.trim() || !formClasses.trim()) {
-      setError('Project name and classes are required');
-      setTimeout(() => setError(''), 3000);
-      setPopupPosEdit(null);
-
-      return;
-    }
-
-    const project = createProject();
-
-    editProject(project);
-    setPopupPosEdit(null);
-  };
-
   const handleAddImageSubmit = (e) => {
     e.preventDefault(); e.preventDefault();
 
-    const editProject = async (project) => {
+    const editProject = async (proj) => {
       setSaving('Adding images...');
 
       try {
         let data;
-        const res = await fetch(`/projects/${projectId}`, {
-          method: 'PATCH',
-          body: project,
+        const res = await fetch(`/projects/${projectId}/images`, {
+          method: 'POST',
+          body: proj,
         });
 
-        if (!res.ok) throw new Error('Failed to add images');
-        data = await res.json();
-
-        if (data.message.toLowerCase() === 'no images added') {
-          setSaving('');
-          return;
+        if (!res.ok) {
+          if (res.status === 401) {
+            window.location.href = '/signin';
+          }
+          else {
+            throw new Error('Failed to add images');
+          }
         }
 
-        window.location.href = `/project/${data.data.id}`;
+        data = await res.json();
+        setImages(prev => [...prev, ...data.data]);
       } catch (err) {
         setError(err.message);
         setTimeout(() => setError(''), 3000);
@@ -375,14 +393,14 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
       }
     };
 
-    const project = new FormData();
+    const proj = new FormData();
 
     formImages.forEach((img, index) => {
-      project.append(`image-${index}`, img);
+      proj.append(`image-${index}`, img);
     });
 
-    editProject(project);
-    setPopupPosAdd(null);
+    editProject(proj);
+    setPopupPosAddImage(null);
   };
 
   return html`
@@ -398,11 +416,10 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
             html`
               <${Popup}
                 labels=${[
-                  {key: 'New', value: 'new'},
-                  {key: 'Open', value: 'open'},
-                  {key: 'Edit', value: 'edit'},
-                  {key: 'Add Images', value: 'images'},
-                  {key: 'Export', value: 'export'}
+                  {id: 'New', value: {id: 'new'}},
+                  {id: 'Open', value: {id: 'open'}},
+                  {id: 'Add Images', value: {id: 'images'}},
+                  {id: 'Export', value: {id: 'export'}}
                 ]}
                 popupPos=${projectPopupPos}
                 onSelect=${handleProjectOptionSelect}
@@ -435,7 +452,7 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
                 popupPos=${popupPos}
                 onSelect=${handleProjectSelect}
                 title=${projectListTitle.current}
-                onContextMenu=${onContextMenu}
+                onContextMenu=${onDeleteContextMenu}
               />
             `
           }
@@ -443,36 +460,21 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
           ${subPopupPos &&
             html`
               <${Popup}
-                labels=${[{key: 'delete', value: 'delete'}]}
+                labels=${[{id: 'delete', value: projectToBeDeleted}]}
                 popupPos=${subPopupPos}
-                onSelect=${handleSubPopupItemSelect}
+                onSelect=${handleDeleteProject}
                 title=${subPopupTitle}
-                onContextMenu=${onContextMenu}
+                onContextMenu=${onDeleteContextMenu}
               />
             `
           }
 
-          ${popupPosEdit &&
-            html`
-              <${Form}
-                title="Edit Project"
-                classes=${formClasses}
-                popupPos=${popupPosEdit}
-                setClasses=${setFormClasses}
-                projectName=${formProjectName}
-                setPopupPos=${setPopupPosEdit}
-                handleSubmit=${handleEditProjectSubmit}
-                setProjectName=${setFormProjectName}
-              />
-            `
-          }
-
-          ${popupPosAdd &&
+          ${popupPosAddImage &&
             html`
               <${Form}
                 title="Add Images"
-                popupPos=${popupPosAdd}
-                setPopupPos=${setPopupPosAdd}
+                popupPos=${popupPosAddImage}
+                setPopupPos=${setPopupPosAddImage}
                 handleSubmit=${handleAddImageSubmit}
                 includeImage=${true}
                 imageOnly=${true}
@@ -483,55 +485,69 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
         </div>
 
         <${ImageList}
-          imageUrls=${imageUrls}
-          setImageUrls=${setImageUrls}
-          selectedImage=${selectedImage}
-          setSelectedImage=${setSelectedImage}
+          images=${images}
+          setImages=${setImages}
+          image=${image}
+          setImage=${setImage}
+          annotations=${annotations}
+          setError=${setError}
+          setSaving=${setSaving}
+          setAnnotationList=${setAnnotationList}
         />
         <${AnnotationList}
+          image=${image}
           annotations=${annotations}
           setAnnotations=${setAnnotations}
+          annotationList=${annotationList}
+          setAnnotationList=${setAnnotationList}
         />
       </div>
 
-      ${Object.keys(project).length === 0
+      ${!project
           ? html`<p class="py-16 px-32 h2-c font-semibold">open or create a project</p>`
           : html`
               <div class="flex flex-col gap-4 px-12 w-4/5">
                 <div class="flex">
-                  <p class="h2-c mr-auto">${projectName}</p>
-                  <div class="flex ml-6 gap-12">
-                    <${Button}
-                      text="finish"
-                      classes="thin-btn-c"
-                    />
-                    <div class="flex gap-4">
-                      <${Button}
-                        text="prev"
-                        handleClick=${handlePrev}
-                      />
-                      <${Button}
-                        text="next"
-                        handleClick=${handleNext}
-                      />
-                    </div>
-                    <div class="flex gap-4">
-                      <${Button}
-                        text="clear"
-                        classes="thin-btn-c"
-                        handleClick=${handleClear}
-                      />
-                      <${Button}
-                        text="save"
-                        classes="thin-btn-c"
-                      />
-                    </div>
-                  </div>
+                  <p class="h2-c mr-auto">${project.name}</p>
+                  ${image
+                    ? html`
+                      <div class="flex ml-6 gap-12">
+                        <${Button}
+                        text="finish"
+                          classes="thin-btn-c"
+                          handleClick=${handleFinish}
+                        />
+                        <div class="flex gap-4">
+                          <${Button}
+                            text="prev"
+                            handleClick=${handlePrev}
+                          />
+                          <${Button}
+                            text="next"
+                            handleClick=${handleNext}
+                          />
+                        </div>
+                        <div class="flex gap-4">
+                          <${Button}
+                            text="clear"
+                            classes="thin-btn-c"
+                            handleClick=${handleClear}
+                          />
+                          <${Button}
+                            text="save"
+                            classes="thin-btn-c"
+                            handleClick=${handleSave}
+                          />
+                        </div>
+                      </div>
+                      `
+                    : null
+                  }
                 </div>
                 <div class="flex-grow">
                   <${Annotator}
-                    imageUrl=${imageUrl}
-                    classes=${projectClasses}
+                    image=${image}
+                    classes=${project.categories}
                     annotations=${annotations}
                     setAnnotations=${setAnnotations}
                   />

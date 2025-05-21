@@ -17,8 +17,37 @@ function Home() {
     setProjectId(window.config.projectId);
   }, []);
 
+  const handleLogout = (e) => {
+    const logout = async () => {
+    setSaving('Logging out...');
+
+      try {
+        let data;
+        const res = await fetch('/signout');
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            window.location.href = '/signin';
+          }
+          else {
+            throw new Error('Failed to log out');
+          }
+        } else {
+          window.location.href = '/signin';
+        }
+      } catch (err) {
+        setError(err.message);
+        setTimeout(() => setError(''), 3000);
+      } finally {
+        setSaving('');
+      }
+    };
+
+    logout();
+  };
+
   return html`
-    <div class="navbar p-6 flex items-center p-4 shadow-sm justify-between">
+    <div class="navbar p-6 flex justify-center p-4 shadow-sm">
       <div class="text-brand-color text-3xl">AnnotateX</div>
       <${Alert}
         error=${error}
@@ -26,9 +55,9 @@ function Home() {
         loading=${loading}
       />
 
-      <div class="flex items-center gap-4">
+      <div class="flex items-center gap-4 ml-auto">
         <div class="text-c text-brand-color">${window.config.username}</div>
-        <button class="btn-c bg-red-700">Logout</button>
+        <button onClick=${handleLogout} class="btn-c bg-red-700">Logout</button>
       </div>
     </div>
 
