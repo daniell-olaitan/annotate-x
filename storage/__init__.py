@@ -1,20 +1,4 @@
-from flask_sqlalchemy import SQLAlchemy
-
-from storage.orm import (
-    UserORM,
-    ProjectORM,
-    CategoryORM,
-    ImageORM,
-    AnnotationORM
-)
-
-from domain.model import (
-    User,
-    Category,
-    Project,
-    Annotation,
-    Image
-)
+from storage.orm import db
 
 from storage.repository import (
     SQLAlchemyUserRepsitory,
@@ -24,13 +8,12 @@ from storage.repository import (
     SQLAlchemyCategoryRepository
 )
 
-db = SQLAlchemy()
 
-user_repo = SQLAlchemyUserRepsitory(db.session, User, UserORM)
-project_repo = SQLAlchemyProjectRepository(db.session, Project, ProjectORM)
-image_repo = SQLAlchemyImageRepository(db.session, Image, ImageORM)
-annotation_repo = SQLAlchemyAnnotationRepository(db.session, Annotation, AnnotationORM)
-category_repo = SQLAlchemyCategoryRepository(db.session, Category, CategoryORM)
+user_repo = SQLAlchemyUserRepsitory(db.session)
+project_repo = SQLAlchemyProjectRepository(db.session)
+image_repo = SQLAlchemyImageRepository(db.session)
+annotation_repo = SQLAlchemyAnnotationRepository(db.session)
+category_repo = SQLAlchemyCategoryRepository(db.session)
 
 
 def get_db_session():
