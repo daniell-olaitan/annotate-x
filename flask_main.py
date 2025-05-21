@@ -4,17 +4,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import json
-import cloudinary.uploader
+from PIL import Image
 
+from utils.image_utils import ImageUtil, generate_image_name
+from werkzeug.exceptions import BadRequest, NotFound, InternalServerError
 from flask_app import create_app
+from flask_app.services import require_login, fetch_project
 from json import JSONDecodeError
-# from flask_cors import CORS
 from flask.typing import ResponseReturnValue
-from flask import render_template, request, jsonify, abort
-
-from domain.model import User, Image, Project, Annotation, Category
+from flask import render_template, request, jsonify, session, g, redirect, url_for
+from domain.model import Image, Project, Annotation, Category
 from storage import (
-    db,
     user_repo,
     project_repo,
     annotation_repo,
@@ -23,129 +23,211 @@ from storage import (
     get_db_session
 )
 
-
 app = create_app(os.getenv('CONFIG', 'default'))
+img_util = ImageUtil()
 
 
-# @login_manager.user_loader
-# def load_user(id: str) -> User:
-#     user_repo = SQLAlchemyUserRepsitory(db.session)
-#     return user_repo.get_by_id(id)
+@app.before_request
+def load_logged_in_user():
+    user_id = session.get('user_id')
+    if user_id is None:
+        g.user = None
+    else:
+        g.user = user_repo.get_by_id(user_id)
 
-image1 = [
-    {'url': '/static/imgs/test-image1.jpg', 'annotations': []}
-]
-
-image2 = [
-    {'url': '/static/imgs/test-image2.png', 'annotations': []}
-]
-
-classes = {
-  'Dog': {'color': 'yellow'},
-  'Cat': {'color': 'orange'},
-  'Cow': {'color': 'brown'},
-  'Rabbit': {'color': 'green'},
-  'Goat': {'color': 'blue'},
-}
-
-project1 = {
-    'images': image1,
-    'classes': classes,
-    'name': 'test project1'
-}
-
-project2 = {
-    'images': image2,
-    'classes': classes,
-    'name': 'test project2'
-}
 
 @app.route('/', methods=['GET'])
 def index():
-    user_id = '' ##
-    user = user_repo.get_by_id(user_id)
-    if not user:
-        abort(400)
+    if g.user is None:
+        return redirect(url_for('auth.signin'))
 
-    return render_template('pages/home.html', username='0xD4N13LL')
+    return render_template('pages/home.html', username=g.user.username)
 
 
-@app.route('/annotations', methods=['PUT'])
-def create_annotation() -> ResponseReturnValue:
-    data = request.get_json()
-    return jsonify({'status': 'success', 'data': 'done'})
+@app.route('/project/<string:id>', methods=['GET'])
+@require_login
+def fetch_project_id(id: str) -> ResponseReturnValue:
+    if g.user is None:
+        return redirect(url_for('auth.signin'))
 
-
-@app.route('/export/<string:id>', methods=['GET'])
-def export_project(id: str) -> ResponseReturnValue:
-    return jsonify({'status': 'fail', 'error': 'invalid project'}), 400
+    project = fetch_project(id)
+    return render_template(
+        'pages/project.html',
+        username=g.user.username,
+        project_id=project.id
+    )
 
 
 @app.route('/projects', methods=['POST'])
+@require_login
 def create_project() -> ResponseReturnValue:
-    user_id = 'id' ##
-    user = user_repo.get_by_id(user_id)
-    if not user:
-        abort(400)
-
     try:
-        project = Project(request.form['name'])
-        project_id = project_repo.add(project, user_id)
+        project_name = request.form['name'].upper()
+        project = project_repo.get(project_name)
+        if project:
+            raise BadRequest('Project name already exist')
 
+        project = Project(name=project_name)
+        project_id = project_repo.add(project, g.user.id)
+
+        # Handle Categories (classes)
         categories = json.loads(request.form['classes'])
         for c in categories:
-            category = Category(name=c.keys()[0], color=c.values()[0])
+            category = Category(name=list(c.keys())[0], color=list(c.values())[0])
             _ = category_repo.add(category, project_id)
 
-        ## Handle Image
+        # Upload Images
+        image_names = []
+        try:
+            for img in request.files.values():
+                image_name = generate_image_name(image_names)
+                img.filename = image_name
+                image_names.append(image_name)
+
+                uploaded_img = img_util.upload_image(img, project_name)
+                image = Image(**uploaded_img)
+                _ = image_repo.add(image, project_id)
+        except Exception:
+            raise InternalServerError('Network Error')
 
         get_db_session().commit()
     except (KeyError, JSONDecodeError):
-        raise #ValidationError
+        raise BadRequest('Invalid form input')
+
+    project = project_repo.get_by_id(project_id)
 
     return jsonify({
         'status': 'success',
-        'data': {'id': 'test1'}
-    }), 200
+        'data': project.to_dict()
+    }), 201
 
 
 @app.route('/projects/<string:id>', methods=['GET'])
+@require_login
 def read_project(id: str) -> ResponseReturnValue:
-    if id == 'test':
-        project = project1
-    else:
-        project = project2
+    project = project_repo.get_with_relationships(id)
+    if not project:
+        raise NotFound('Project not found')
 
-    return jsonify({'status': 'success', 'data': project})
-
-@app.route('/project/<string:id>', methods=['GET'])
-def fetch_project_id(id: str) -> ResponseReturnValue:
-    if id == 'test' or id == 'test1':
-        return render_template(
-            'pages/project.html',
-            username='0xD4N13LL',
-            project_id=id
-        )
-
-    abort(404)
-
-
-@app.route('/projects', methods=['GET'])
-def read_projects() -> ResponseReturnValue:
     return jsonify({
         'status': 'success',
-        'data': {'test project': 'test'}
+        'data': project.to_dict()
     }), 200
 
 
-@app.route('/projects', methods=['DELETE'])
-def delete_project() -> ResponseReturnValue:
+@app.route('/projects', methods=['GET'])
+@require_login
+def read_projects() -> ResponseReturnValue:
+    projects = [project.to_dict() for project in project_repo.list()]
+
+    return jsonify({
+        'status': 'success',
+        'data': projects
+    }), 200
+
+
+@app.route('/projects/<string:id>', methods=['DELETE'])
+@require_login
+def delete_project(id: str) -> ResponseReturnValue:
+    project = fetch_project(id)
+    if project is None:
+        raise BadRequest('Project does not exist')
+
+    try:
+        img_util.delete_all(project.name)
+    except Exception:
+        raise InternalServerError('Network Error')
+
+    project_repo.remove(project.id)
+    get_db_session().commit()
+
     return jsonify({}), 200
 
 
-@app.route('/projects', methods=['PATCH'])
-def update_project() -> ResponseReturnValue:
-    return jsonify({}), 200
+@app.route('/images/<string:id>/annotations', methods=['POST'])
+@require_login
+def create_annotation(id: str) -> ResponseReturnValue:
+    annotations = request.get_json()
+    if annotations is None:
+        raise BadRequest('Invalid input')
+
+    image = image_repo.get_by_id(id)
+    if not image:
+        raise NotFound('Image not found')
+
+    image_repo.remove_image_annotations(image.id)
+
+
+    ## Handle Annotations
+    try:
+        for a in annotations:
+            annotation = Annotation(a['x'], a['y'], a['width'], a['height'])
+            category = category_repo.get(a['category']['name'])
+            if not category:
+                raise BadRequest('Invalid Input')
+
+            _ = annotation_repo.add(annotation, image.id, category.id)
+        get_db_session().commit()
+    except KeyError:
+        raise BadRequest('Invalid input')
+
+    return jsonify({'status': 'success', 'data': {}}), 200
+
+
+@app.route('/projects/<string:id>/images', methods=['POST'])
+@require_login
+def add_project_images(id: str) -> ResponseReturnValue:
+    project = fetch_project(id)
+
+    # Upload Images
+    images = []
+    try:
+        image_names = project_repo.get_project_image_names(project.id)
+        for img in request.files.values():
+            image_name = generate_image_name(image_names)
+            img.filename = image_name
+            image_names.append(image_name)
+
+            uploaded_img = img_util.upload_image(img, project.name)
+            image = Image(**uploaded_img)
+            _ = image_repo.add(image, project.id)
+
+            img = image.to_dict()
+            img['annotations'] = []
+            images.append(img)
+
+        get_db_session().commit()
+    except Exception:
+        raise InternalServerError('Network Error')
+
+    return jsonify({
+        'status': 'success',
+        'data': images
+    }), 201
+
+
+@app.route('/images/<string:id>', methods=['DELETE'])
+@require_login
+def delete_image(id: str) -> ResponseReturnValue:
+    image = image_repo.get_by_id(id)
+    if not image:
+        raise NotFound('Image not found')
+
+    try:
+        img_util.delete_image(image)
+    except Exception:
+        raise InternalServerError('Network Error')
+
+    image_repo.remove(image.id)
+    get_db_session().commit()
+
+    return jsonify({'status': 'success', 'data': {}}), 200
+
+
+@app.route('/export/<string:id>', methods=['GET'])
+@require_login
+def export_project(id: str) -> ResponseReturnValue:
+    return jsonify({'status': 'fail', 'error': 'invalid project'}), 400
 
 
 if __name__ == '__main__':
