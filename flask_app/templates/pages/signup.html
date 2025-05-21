@@ -1,0 +1,8 @@
+{% extends 'index.html' %}
+
+{% block title %}Sign Up{% endblock %}
+{% block content %}
+  <div id="signup" class="h-full"></div>
+
+  <script type="module" src="{{ url_for('static', filename='src/js/pages/Signup.js') }}"></script>
+{% endblock %}
