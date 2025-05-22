@@ -46,17 +46,30 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
         let data;
         const res = await fetch(`/projects/${pId}`);
 
-        if (!res.ok) throw new Error('Failed to fetch project');
-        data = await res.json();
+        if (!res.ok) {
+          let error = new Error('Failed to fetch project');
 
-        const proj = data.data;
-        setProject({
-          id: proj.id,
-          name: proj.name,
-          categories: proj.categories
-        });
+          if (res.status === 401) {
+            window.location.href = '/signin';
+          }
+          else if (res.status === 404 || res.status === 400) {
+            const data = await res.json();
+            error = new Error(`${data.message}`);
+          }
 
-        setImages(proj.images);
+            throw error;
+        } else {
+          data = await res.json();
+
+          const proj = data.data;
+          setProject({
+            id: proj.id,
+            name: proj.name,
+            categories: proj.categories
+          });
+
+          setImages(proj.images);
+        }
       } catch (err) {
         setError(err.message);
         setTimeout(() => setError(''), 3000);
@@ -177,12 +190,17 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
             const res = await fetch('/projects');
 
             if (!res.ok) {
+              let error = new Error('Failed to fetch projects');
+
               if (res.status === 401) {
                 window.location.href = '/signin';
               }
-              else {
-                throw new Error('Failed to fetch projects');
+              else if (res.status === 404 || res.status === 400) {
+                const data = await res.json();
+                error = new Error(`${data.message}`);
               }
+
+                throw error;
             } else {
               data = await res.json();
 
@@ -285,16 +303,21 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
           });
 
           if (!res.ok) {
+            let error = new Error('Failed to delete project');
+
             if (res.status === 401) {
               window.location.href = '/signin';
             }
-            else {
-              throw new Error('Failed to delete project');
+            else if (res.status === 404 || res.status === 400) {
+              const data = await res.json();
+              error = new Error(`${data.message}`);
             }
-          }
 
-          if (proj.id === projectId) {
-            window.location.href = '/';
+              throw error;
+          } else {
+            if (proj.id === projectId) {
+              window.location.href = '/';
+            }
           }
         } catch (err) {
           setError(err.message);
@@ -361,16 +384,21 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
         });
 
         if (!res.ok) {
+          let error = new Error('Failed to create project');
+
           if (res.status === 401) {
             window.location.href = '/signin';
           }
-          else {
-            throw new Error('Failed to create project');
+          else if (res.status === 404 || res.status === 400) {
+            const data = await res.json();
+            error = new Error(`${data.message}`);
           }
-        }
 
-        data = await res.json();
-        window.location.href = `/project/${data.data.id}`;
+            throw error;
+        } else {
+          data = await res.json();
+          window.location.href = `/project/${data.data.id}`;
+        }
       } catch (err) {
         setError(err.message);
         setTimeout(() => setError(''), 3000);
@@ -411,16 +439,21 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
         });
 
         if (!res.ok) {
+          let error = new Error('Failed to add images');
+
           if (res.status === 401) {
             window.location.href = '/signin';
           }
-          else {
-            throw new Error('Failed to add images');
+          else if (res.status === 404 || res.status === 400) {
+            const data = await res.json();
+            error = new Error(`${data.message}`);
           }
-        }
 
-        data = await res.json();
-        setImages(prev => [...prev, ...data.data]);
+            throw error;
+        } else {
+          data = await res.json();
+          setImages(prev => [...prev, ...data.data]);
+        }
       } catch (err) {
         setError(err.message);
         setTimeout(() => setError(''), 3000);

@@ -47,12 +47,17 @@ export const saveAnnotation = async ({ id, body, setError, setSaving }) => {
     });
 
     if (!res.ok) {
+      let error = new Error('Failed to save changes');
+
       if (res.status === 401) {
         window.location.href = '/signin';
       }
-      else {
-        throw new Error('Failed to save changes');
+      else if (res.status === 404 || res.status === 400) {
+        const data = await res.json();
+        error = new Error(`${data.message}`);
       }
+
+        throw error;
     }
   } catch (err) {
     setError(err.message);
