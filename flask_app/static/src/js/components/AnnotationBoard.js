@@ -210,8 +210,44 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
           setPopupPosAddImage({x, y});
         }
       } else if (option.id === 'export') {
+        const exportProject = async () => {
+          setSaving('Exporting project...')
+
+          try {
+            const res = await fetch(`/export/${projectId}`);
+
+            if (!res.ok) {
+              let error = new Error('Failed to export projects');
+              if (res.status === 401) {
+                window.location.href = '/signin';
+              }
+              else if (res.status === 404 || res.status === 400) {
+                const data = await res.json();
+                error = new Error(`${data.message}`);
+              }
+
+                throw error;
+            } else {
+              const blob = await res.blob()
+              const url = window.URL.createObjectURL(blob);
+
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${project.name.toLowerCase()}_annotations.zip`;
+              a.click();
+
+              window.URL.revokeObjectURL(url);
+            }
+          } catch (err) {
+            setError(err.message);
+            setTimeout(() => setError(''), 3000);
+          } finally {
+            setSaving('');
+          }
+        };
+
         if (projectId) {
-          // TODO: export the project
+          exportProject()
         }
       }
     }

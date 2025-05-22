@@ -4,15 +4,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import json
-from PIL import Image
+import requests
+import zipfile
 
+from io import BytesIO
 from utils.image_utils import ImageUtil, generate_image_name
 from werkzeug.exceptions import BadRequest, NotFound, InternalServerError
 from flask_app import create_app
 from flask_app.services import require_login, fetch_project
 from json import JSONDecodeError
 from flask.typing import ResponseReturnValue
-from flask import render_template, request, jsonify, session, g, redirect, url_for
+from flask import render_template, request, jsonify, session, g, redirect, url_for, send_file
 from domain.model import Image, Project, Annotation, Category
 from storage import (
     user_repo,
@@ -227,7 +229,35 @@ def delete_image(id: str) -> ResponseReturnValue:
 @app.route('/export/<string:id>', methods=['GET'])
 @require_login
 def export_project(id: str) -> ResponseReturnValue:
-    return jsonify({'status': 'fail', 'error': 'invalid project'}), 400
+    project = project_repo.export_project_data(id)
+    if not project:
+        raise NotFound('Project does not exist')
+
+    project_name = project.pop('name')
+    image_urls = project.pop('image_urls')
+
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', compression=zipfile.ZIP_DEFLATED) as zip_file:
+        for img, img_url in zip(project['images'], image_urls):
+            try:
+                response = requests.get(img_url)
+                response.raise_for_status()
+
+                zip_file.writestr(f"images/{img['filename']}", response.content)
+            except requests.RequestException:
+                raise InternalServerError('Network Error')
+
+        project_str = json.dumps(project, indent=2)
+        zip_file.writestr("annotations.json", project_str)
+
+    zip_buffer.seek(0)
+
+    return send_file(
+        zip_buffer,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f"{project_name}_annotations.zip"
+    )
 
 
 if __name__ == '__main__':

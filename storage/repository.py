@@ -55,6 +55,10 @@ class ProjectRepository(ABC):
     def remove(self, id: str) -> None:
         raise NOT_IMPLEMENTED_ERROR
 
+    @abstractmethod
+    def export_project_data(self, id: str) -> dict:
+        raise NOT_IMPLEMENTED_ERROR
+
 
 class AnnotationRepository(ABC):
     @abstractmethod
@@ -190,6 +194,50 @@ class SQLAlchemyProjectRepository(BaseSQLAlchemyRepository, ProjectRepository):
     def remove(self, id: str) -> None:
         project_orm = self._session.query(ProjectORM).filter_by(id=id).first()
         self._session.delete(project_orm)
+
+    def export_project_data(self, id: str) -> dict:
+        project = {}
+        project_orm = self._session.query(ProjectORM).filter_by(id=id).first()
+        if project_orm:
+            categories = [
+                {'id': category_orm.id, 'name': category_orm.name}
+                for category_orm in project_orm.categories
+            ]
+
+            images = []
+            image_urls = []
+            annotations = []
+            for image_orm in project_orm.images:
+                image_dict = image_orm.to_dict()
+                image_urls.append(image_dict.pop('url'))
+                images.append(image_dict)
+
+                for annotation_orm in image_orm.annotations:
+                    annotation = {
+                        'id': annotation_orm.id,
+                        'image_id': annotation_orm.image_id,
+                        'category_id': annotation_orm.category_id,
+                        'iscrowd': 0,
+                        'area': annotation_orm.width * annotation_orm.height,
+                        'bbox': [
+                            annotation_orm.x,
+                            annotation_orm.y,
+                            annotation_orm.width,
+                            annotation_orm.height
+                        ]
+                    }
+
+                    annotations.append(annotation)
+
+            project.update(
+                name=project_orm.name.lower(),
+                images=images,
+                categories=categories,
+                image_urls=image_urls,
+                annotations=annotations
+            )
+
+        return project
 
 
 class SQLAlchemyImageRepository(BaseSQLAlchemyRepository, ImageRepository):
