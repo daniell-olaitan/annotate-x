@@ -67,6 +67,10 @@ function Home() {
       setSaving=${setSaving}
       setLoading=${setLoading}
     />
+
+    <footer class="p-4 border-t border-gray-200">
+      <p class="text-center text-c text-brand-color">© ${new Date().getFullYear()} | Developed by Daniel OLAITAN</p>
+    </footer>
   `;
 }
 

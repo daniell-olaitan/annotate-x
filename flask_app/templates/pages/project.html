@@ -1,9 +1,7 @@
-{% import 'components/footer.html' as foot %}
 {% extends 'index.html' %}
 
 {% block content %}
   <div id="project"></div>
-  {{ foot.footer() }}
 
   {% if project_id %}
     <script>window.config = {username: "{{ username }}", projectId: "{{ project_id }}"}</script>
