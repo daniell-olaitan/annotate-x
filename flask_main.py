@@ -40,6 +40,13 @@ def load_logged_in_user():
 
 @app.route('/', methods=['GET'])
 def index():
+    if session.get('demo'):
+        return render_template(
+            'pages/project.html',
+            username='demo_user',
+            project_id=None
+        )
+
     if g.user is None:
         return redirect(url_for('auth.signin'))
 

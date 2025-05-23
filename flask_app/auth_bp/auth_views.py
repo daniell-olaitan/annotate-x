@@ -1,3 +1,5 @@
+import uuid
+
 from flask_app.auth_bp import auth
 from flask import request, render_template, redirect, url_for, g, session, jsonify
 from storage import user_repo, get_db_session
@@ -6,6 +8,14 @@ from flask_app.services import require_login
 from domain.model import User
 from werkzeug.exceptions import BadRequest, NotFound
 
+
+@auth.route('/demo-signin', methods=['GET'])
+def demo_signin():
+    if not session.get('demo'):
+        session['user_id'] = str(uuid.uuid4())
+        session['demo'] = True
+
+    return redirect(url_for('index'))
 
 @auth.route('/signin', methods=['GET', 'POST'])
 def signin():
