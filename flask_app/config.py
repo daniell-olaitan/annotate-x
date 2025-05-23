@@ -8,9 +8,10 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = "postgresql://{}:{}@db/{}".format(
+    SQLALCHEMY_DATABASE_URI = "postgresql://{}:{}@{}/{}".format(
         getenv('DATABASE_USERNAME'),
         getenv('DATABASE_PASSWORD'),
+        getenv('DATABASE_HOST'),
         getenv('DATABASE')
     )
 
@@ -22,9 +23,10 @@ class TestingConfig(Config):
 
 class DeploymentConfig(Config):
     DEBUG = False
-    SQLALCHEMY_DATABASE_URI = "postgresql://{}:{}@localhost/{}".format(
+    SQLALCHEMY_DATABASE_URI = "postgresql://{}:{}@{}/{}".format(
         getenv('DATABASE_USERNAME'),
         getenv('DATABASE_PASSWORD'),
+        getenv('DATABASE_HOST'),
         getenv('DATABASE')
     )
 
