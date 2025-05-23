@@ -72,5 +72,5 @@ function Home() {
 
 render(
   html`<${Home} />`,
-  document.getElementById("home")
+  document.getElementById("project")
 );

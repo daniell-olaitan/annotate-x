@@ -43,7 +43,11 @@ def index():
     if g.user is None:
         return redirect(url_for('auth.signin'))
 
-    return render_template('pages/home.html', username=g.user.username)
+    return render_template(
+        'pages/project.html',
+        username=g.user.username,
+        project_id=None
+    )
 
 
 @app.route('/project/<string:id>', methods=['GET'])
