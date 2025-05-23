@@ -5,6 +5,10 @@ import os
 import logging
 import string
 import random
+import asyncio
+import hashlib
+import time
+import httpx
 
 from werkzeug.datastructures import FileStorage
 from domain.model import Image
@@ -33,31 +37,52 @@ class ImageUtil:
     def __init__(self, retries: int = 1) -> None:
         self.retries = retries
 
-    def upload_image(self, file: FileStorage, folder: str) -> str:
-        """
-        Upload an image to Cloudinary to a specific folder with retry and error handling.
+    async def async_upload_images(self, files: list[FileStorage], folder: str) -> list[dict]:
+        async def upload(client: httpx.AsyncClient, file: FileStorage):
+            cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
+            api_key = os.getenv("CLOUDINARY_API_KEY")
+            api_secret = os.getenv("CLOUDINARY_API_SECRET")
+            timestamp = str(int(time.time()))
 
-        Args:
-            file (FileStorage): The image file to be uploaded
-            folder (str): The folder where the image should be uploaded.
+            # Build signature string
+            params_to_sign = f"folder={folder}&public_id={file.filename}&timestamp={timestamp}{api_secret}"
+            signature = hashlib.sha1(params_to_sign.encode("utf-8")).hexdigest()
 
-        Returns:
-            str: public_id and secure_url of the image from Cloudinary on successful upload.
-        """
+            upload_url = f"https://api.cloudinary.com/v1_1/{cloud_name}/image/upload"
+            files = {"file": (file.filename, file.stream, file.mimetype)}
+            data = {
+                "api_key": api_key,
+                "timestamp": timestamp,
+                "public_id": file.filename,
+                "folder": folder,
+                "signature": signature,
+            }
+
+            response = await client.post(upload_url, data=data, files=files)
+            response.raise_for_status()
+
+            return response.json()
+
         attempt = 0
         while attempt < self.retries:
             try:
                 logger.info(f"Uploading image to folder: {folder}")
-                response = cloudinary.uploader.upload(file, folder=folder, public_id=file.filename)
 
-                logger.info(f"Image uploaded successfully: {response['public_id']}")
-                return {
-                    'url': response['secure_url'],
-                    'filename': file.filename,
-                    'width': response['width'],
-                    'height': response['height']
-                }
+                async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+                    tasks = [upload(client, file) for file in files]
+                    responses = await asyncio.gather(*tasks)
 
+                logger.info("Images uploaded successfully")
+
+                return [
+                    {
+                        'url': response['secure_url'],
+                        'filename': file.filename,
+                        'width': response['width'],
+                        'height': response['height']
+                    }
+                    for file, response in zip(files, responses)
+                ]
             except Exception as e:
                 attempt += 1
                 logger.warning(f"Upload attempt {attempt} failed: {e}")
@@ -65,13 +90,10 @@ class ImageUtil:
                     logger.error(f"Failed to upload image after {self.retries} attempts.")
                     raise
 
-    def delete_image(self, image: Image) -> None:
-        """
-        Delete a single image from Cloudinary by public ID with retry and error handling.
+    def upload_images(self, files: list[FileStorage], folder: str) -> list[dict]:
+        return asyncio.run(self.async_upload_images(files, folder))
 
-        Args:
-            image (Image): The image to delete.
-        """
+    def delete_image(self, image: Image) -> None:
         attempt = 0
         while attempt < self.retries:
             try:
@@ -94,12 +116,6 @@ class ImageUtil:
                     raise
 
     def delete_all(self, folder: str) -> None:
-        """
-        Deletes all images in a specified Cloudinary folder using pagination, with logging and retry on failure.
-
-        Args:
-            folder (str): The folder containing images to delete.
-        """
         attempt = 0
         while attempt < self.retries:
             try:

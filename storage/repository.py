@@ -1,11 +1,8 @@
-# from uuid import uuid4
-# from storage import db
 from typing import Any
 from domain.model import User, Project, Image, Annotation, Category
 from storage.orm import UserORM, ProjectORM, ImageORM, AnnotationORM, CategoryORM
 from sqlalchemy.orm import Session
 from abc import ABC, abstractmethod
-from utils.image_utils import ImageUtil
 from pathlib import Path
 
 NOT_IMPLEMENTED_ERROR = NotImplementedError('Method must be implemented')

@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import asyncio
+import httpx
 import json
 import requests
 import zipfile
@@ -91,17 +93,22 @@ def create_project() -> ResponseReturnValue:
 
         # Upload Images
         image_names = []
-        try:
-            for img in request.files.values():
-                image_name = generate_image_name(image_names)
-                img.filename = image_name
-                image_names.append(image_name)
+        files = []
 
-                uploaded_img = img_util.upload_image(img, project_name)
-                image = Image(**uploaded_img)
-                _ = image_repo.add(image, project_id)
+        for img in request.files.values():
+            image_name = generate_image_name(image_names)
+            img.filename = image_name
+            image_names.append(image_name)
+            files.append(img)
+
+        try:
+            uploaded_imgs = img_util.upload_images(files, project_name)
         except Exception:
             raise InternalServerError('Network Error')
+
+        for uploaded_img in uploaded_imgs:
+            image = Image(**uploaded_img)
+            _ = image_repo.add(image, project_id)
 
         get_db_session().commit()
     except (KeyError, JSONDecodeError):
@@ -194,24 +201,29 @@ def add_project_images(id: str) -> ResponseReturnValue:
 
     # Upload Images
     images = []
+    files = []
+    image_names = project_repo.get_project_image_names(project.id)
+
+    for img in request.files.values():
+        image_name = generate_image_name(image_names)
+        img.filename = image_name
+        image_names.append(image_name)
+        files.append(img)
+
     try:
-        image_names = project_repo.get_project_image_names(project.id)
-        for img in request.files.values():
-            image_name = generate_image_name(image_names)
-            img.filename = image_name
-            image_names.append(image_name)
-
-            uploaded_img = img_util.upload_image(img, project.name)
-            image = Image(**uploaded_img)
-            _ = image_repo.add(image, project.id)
-
-            img = image.to_dict()
-            img['annotations'] = []
-            images.append(img)
-
-        get_db_session().commit()
+        uploaded_imgs = img_util.upload_images(files, project.name)
     except Exception:
         raise InternalServerError('Network Error')
+
+    for uploaded_img in uploaded_imgs:
+        image = Image(**uploaded_img)
+        _ = image_repo.add(image, project.id)
+
+        img = image.to_dict()
+        img['annotations'] = []
+        images.append(img)
+
+    get_db_session().commit()
 
     return jsonify({
         'status': 'success',
@@ -240,6 +252,17 @@ def delete_image(id: str) -> ResponseReturnValue:
 @app.route('/export/<string:id>', methods=['GET'])
 @require_login
 def export_project(id: str) -> ResponseReturnValue:
+    async def fetch(client: httpx.AsyncClient, url: str) -> httpx.Response:
+        response = await client.get(url)
+        response.raise_for_status()
+
+        return response
+
+    async def fetch_all(urls: list[str]) -> list[httpx.Response]:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            tasks = [fetch(client, url) for url in urls]
+            return await asyncio.gather(*tasks)
+
     project = project_repo.export_project_data(id)
     if not project:
         raise NotFound('Project does not exist')
@@ -249,14 +272,13 @@ def export_project(id: str) -> ResponseReturnValue:
 
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', compression=zipfile.ZIP_DEFLATED) as zip_file:
-        for img, img_url in zip(project['images'], image_urls):
-            try:
-                response = requests.get(img_url)
-                response.raise_for_status()
+        try:
+            responses = asyncio.run(fetch_all(image_urls))
+        except requests.RequestException:
+            raise InternalServerError('Network Error')
 
-                zip_file.writestr(f"images/{img['filename']}", response.content)
-            except requests.RequestException:
-                raise InternalServerError('Network Error')
+        for img, response in zip(project['images'], responses):
+            zip_file.writestr(f"images/{img['filename']}", response.content)
 
         project_str = json.dumps(project, indent=2)
         zip_file.writestr("annotations.json", project_str)
