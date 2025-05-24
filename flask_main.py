@@ -39,7 +39,6 @@ def load_logged_in_user():
 
 
 @app.route('/', methods=['GET'])
-@require_login
 def index():
     if g.user is None:
         return redirect(url_for('auth.signin'))
