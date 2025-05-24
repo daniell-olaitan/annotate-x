@@ -4,17 +4,21 @@ import { useRef, useState, useEffect } from 'https://esm.sh/preact/hooks';
 
 const html = htm.bind(h);
 
-export function Popup({ labels, onSelect, onContextMenu, popupPos, title }) {
+export function InputPopup({ onSubmit, popupPos }) {
   const popupWidth = 200;
-  const popupHeight = labels.length * 36 + 40;
+  const popupHeight = 3 * 36 + 40;
 
+  const [category, setCategory] = useState('');
+
+  const inputRef = useRef(null);
   const popupRef = useRef(null);
+
   const [position, setPosition] = useState(popupPos);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (popupRef.current && !popupRef.current.contains(e.target)) {
-        onSelect(null, e);
+        onSubmit(null, e);
       }
     };
 
@@ -23,6 +27,10 @@ export function Popup({ labels, onSelect, onContextMenu, popupPos, title }) {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
+  }, []);
+
+  useEffect(() => {
+    inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
@@ -47,23 +55,27 @@ export function Popup({ labels, onSelect, onContextMenu, popupPos, title }) {
       class="absolute bg-white border rounded shadow-lg z-50 py-4 px-6"
       style=${{ top: position.y + 'px', left: position.x + 'px' }}
     >
-      <p class="font-semibold text-sm text-c mb-4">${title}</p>
-      <ul class="space-y-1">
-        ${labels.map(
-          label => html`
-            <li>
-              <button
-                key=${label.id}
-                class="text-sm px-3 py-1 rounded hover:bg-blue-100 w-full text-left text-c"
-                onClick=${(e) => onSelect(label.value, e)}
-                onContextMenu=${onContextMenu ? (e) => onContextMenu(label.value, e) : undefined}
-              >
-                ${label.id}
-              </button>
-            </li>
-          `
-        )}
-      </ul>
+      <form novalidate>
+        <label for="category" class="block mb-2 text-sm text-c font-semibold">Category</label>
+        <input
+          ref=${inputRef}
+          id="category"
+          type="text"
+          class="form-c mb-2"
+          value=${category}
+          onInput=${e => setCategory(e.target.value)}
+        />
+
+        <div class="flex">
+          <button
+            class="solid-btn-c ml-auto"
+            type="submit"
+            onClick=${(e) => onSubmit(category, e)}
+          >
+            Enter
+          </button>
+        </div>
+      </form>
     </div>
   `;
 }

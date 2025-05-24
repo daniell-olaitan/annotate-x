@@ -1,5 +1,6 @@
+import { InputPopup } from './InputPopup.js';
 import { Popup } from './Popup.js';
-import { Drawer } from '../utils.js';
+import { ColorSelector, Drawer } from '../utils.js';
 
 import htm from 'https://esm.sh/htm';
 import { h } from 'https://esm.sh/preact';
@@ -9,7 +10,8 @@ import { v4 as uuidv4 } from 'https://jspm.dev/uuid';
 const html = htm.bind(h);
 
 export function Annotator({
-  classes,
+  project,
+  setProject,
   image,
   annotations,
   setAnnotations,
@@ -21,8 +23,6 @@ export function Annotator({
 
   const annotationColor = 'red';
 
-  const labels = classes.map(cls => ({id: cls.name, value: cls}));
-
   const drawerRef = useRef(new Drawer());
 
   const [scale, setScale] = useState(null);
@@ -30,11 +30,14 @@ export function Annotator({
   const imageRef = useRef(null);
   const canvasRef = useRef(null);
 
+  const [labels, setLabels] = useState([]);
+
   const isDrawingRef = useRef(false);
   const startPoint = useRef({ x: 0, y: 0 });
   const currentPoint = useRef({ x: 0, y: 0 });
 
   const [popupPos, setPopupPos] = useState(null);
+  const [inputPopupPos, setInputPopupPos] = useState(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -56,6 +59,15 @@ export function Annotator({
     imageAnnotationsRef.current = annotations[image.id];
     drawAnnotations(scale.x, scale.y);
   }, [annotations]);
+
+  useEffect(() => {
+    if (!project) return;
+
+    const labelItems = project.categories.map(cls => ({id: cls.name, value: cls}));
+
+    labelItems.push({id: 'Add New', value: '__new__'})
+    setLabels(labelItems);
+  }, [project]);
 
   const getCurrentAnnotation = (startPoint, currentPoint) => {
     return {
@@ -126,19 +138,65 @@ export function Annotator({
     }
   };
 
-  const handleClassSelect = (cls) => {
+  const handleClassSelect = (cls, e) => {
     const annotatn = imageAnnotationsRef.current.pop();
 
     if (cls) {
-      annotatn.category.name = cls.name;
-      annotatn.category.color = cls.color;
+      if (cls === '__new__') {
+        imageAnnotationsRef.current.push(annotatn);
+        setAnnotations({...annotations, [image.id]: imageAnnotationsRef.current});
+
+        e.preventDefault();
+
+        const x = e.clientX;
+        const y = e.clientY;
+        setInputPopupPos({
+          x: (annotatn.x + annotatn.width) * scale.x,
+          y: (annotatn.y + annotatn.height) * scale.y
+        });
+      } else {
+        annotatn.category.name = cls.name;
+        annotatn.category.color = cls.color;
+
+        imageAnnotationsRef.current.push(annotatn);
+        setAnnotations({...annotations, [image.id]: imageAnnotationsRef.current});
+      }
+    }
+
+    drawAnnotations(scale.x, scale.y);
+    setPopupPos(null);
+  };
+
+  const handleCategoryInput = (category, e) => {
+    const annotatn = imageAnnotationsRef.current.pop();
+    const categoryNames = project.categories.map(cls => cls.name);
+
+    if (category && category.trim()) {
+      if (categoryNames.includes(category.toLowerCase())) {
+        const cls = project.categories.find(c => c.name === category.toLowerCase());
+
+        if (cls) {
+          annotatn.category.name = cls.name;
+          annotatn.category.color = cls.color;
+        }
+      } else {
+        const colorSelector = new ColorSelector();
+        const categoryColors = project.categories.map(cls => cls.color);
+
+        annotatn.category.name = category.toLowerCase();
+        annotatn.category.color = colorSelector.selectColor(categoryColors);
+
+        setProject(prev => ({...prev, categories: [...prev.categories, annotatn.category]}));
+      }
+
+      console.log(annotatn);
 
       imageAnnotationsRef.current.push(annotatn);
       setAnnotations({...annotations, [image.id]: imageAnnotationsRef.current});
     }
 
     drawAnnotations(scale.x, scale.y);
-    setPopupPos(null);
+    setInputPopupPos(null);
   };
 
   const handleMouseDown = (e) => {
@@ -176,7 +234,7 @@ export function Annotator({
     );
 
     // Ignore very small boxes
-    if (currentAnnotion.width < 10 || currentAnnotion.height < 10) {
+    if (currentAnnotion.width < 5 || currentAnnotion.height < 5) {
       drawAnnotations(scale.x, scale.y);
       return;
     }
@@ -233,6 +291,15 @@ export function Annotator({
                   popupPos=${popupPos}
                   title="select a class"
                   onSelect=${handleClassSelect}
+                />
+              `
+            }
+
+            ${inputPopupPos &&
+              html`
+                <${InputPopup}
+                  popupPos=${inputPopupPos}
+                  onSubmit=${handleCategoryInput}
                 />
               `
             }

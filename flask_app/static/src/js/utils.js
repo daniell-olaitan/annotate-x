@@ -34,11 +34,34 @@ export class Drawer {
   }
 }
 
-export const saveAnnotation = async ({ id, body, setError, setSaving }) => {
+export class ColorSelector {
+  colors = [
+    "red", "blue", "green", "orange", "purple",
+    "teal", "yellow", "pink", "brown", "cyan",
+    "magenta", "lime", "indigo", "violet", "gold",
+    "silver", "maroon", "navy", "olive", "coral",
+    "aqua", "turquoise", "salmon", "orchid", "plum",
+    "crimson", "khaki", "lavender", "chocolate", "tan",
+    "skyblue", "seagreen", "tomato", "slateblue", "forestgreen",
+    "darkorange", "mediumvioletred", "deepskyblue", "dodgerblue", "firebrick"
+  ];
+
+  selectColor(itemsToExclude = []) {
+    let randomColor = this.colors[Math.floor(Math.random() * this.colors.length)];
+
+    while (itemsToExclude.includes(randomColor)) {
+      randomColor = this.colors[Math.floor(Math.random() * this.colors.length)];
+    }
+
+    return randomColor;
+  }
+}
+
+export const saveAnnotation = async ({pId, imgId, body, setError, setSaving }) => {
   setSaving('Saving...');
 
   try {
-    const res = await fetch(`/images/${id}/annotations`, {
+    const res = await fetch(`/projects/${pId}/images/${imgId}/annotations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

@@ -32,35 +32,6 @@ class BaseORM:
         return orm_dict
 
 
-        # result = {}
-
-        # # Add column attributes
-        # for attr in class_mapper(self.__class__).iterate_properties:
-        #     if (
-        #         isinstance(attr, ColumnProperty)
-        #         and not attr.key.endswith('_id')
-        #         and attr.key not in ['created_at', 'updated_at']
-        #     ):
-        #         result[attr.key] = getattr(self, attr.key)
-
-        # # # Add relationships if depth > 0
-        # # if depth > 0:
-        # #     for attr in class_mapper(self.__class__).iterate_properties:
-        # #         if (
-        # #             isinstance(attr, RelationshipProperty)
-        # #             and not attr.key.endswith('_id')
-        # #             and attr.key not in ['created_at', 'updated_at']
-        # #         ):
-        # #             value = getattr(self, attr.key)
-        # #             if value is None:
-        # #                 result[attr.key] = None
-        # #             elif isinstance(value, list):  # One-to-many / many-to-many
-        # #                 result[attr.key] = [self.orm_to_dict(i, depth=depth-1) for i in value]
-        # #             else:  # Many-to-one / one-to-one
-        # #                 result[attr.key] = self.orm_to_dict(value, depth=depth-1)
-
-        # return result
-
 class AnnotationORM(BaseORM, db.Model):
     __tablename__ = 'annotations'
     image_id = db.Column(db.String(60), db.ForeignKey('images.id'), nullable=False)
@@ -69,6 +40,11 @@ class AnnotationORM(BaseORM, db.Model):
     y = db.Column(db.Float, nullable=False)
     width = db.Column(db.Float, nullable=False)
     height = db.Column(db.Float, nullable=False)
+
+
+class DemoORM(BaseORM, db.Model):
+    __tablename__ = 'demo'
+    url = db.Column(db.String(256), nullable=False)
 
 
 class ImageORM(BaseORM, db.Model):

@@ -5,7 +5,8 @@ from storage.repository import (
     SQLAlchemyImageRepository,
     SQLAlchemyAnnotationRepository,
     SQLAlchemyProjectRepository,
-    SQLAlchemyCategoryRepository
+    SQLAlchemyCategoryRepository,
+    SQLAlchemyDemoRepository
 )
 
 
@@ -14,6 +15,7 @@ project_repo = SQLAlchemyProjectRepository(db.session)
 image_repo = SQLAlchemyImageRepository(db.session)
 annotation_repo = SQLAlchemyAnnotationRepository(db.session)
 category_repo = SQLAlchemyCategoryRepository(db.session)
+demo_repo = SQLAlchemyDemoRepository(db.session)
 
 
 def get_db_session():

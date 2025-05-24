@@ -2,7 +2,7 @@ import { Link } from './Link.js';
 
 import htm from 'https://esm.sh/htm';
 import { h } from 'https://esm.sh/preact';
-import { useRef, useState, useEffect } from 'https://esm.sh/preact/hooks';
+import { useRef, useState } from 'https://esm.sh/preact/hooks';
 
 const html = htm.bind(h);
 
@@ -14,6 +14,25 @@ export function AuthForm({ title, type, setProcessing, setError }) {
   const [password, setPassword] = useState('');
 
   const handleDemoClick = (e) => {
+    const demoLogin = async () => {
+      setProcessing('Signing in ...');
+
+      try {
+        const res = await fetch('/demo-signin')
+
+        if (!res.ok) throw new Error('Failed to sign in');
+        const data = await res.json();
+
+        window.location.href = `/project/${data.data.id}`;
+      } catch (err) {
+        setError(err.message);
+        setTimeout(() => setError(''), 3000);
+      } finally {
+        setProcessing('');
+      }
+    };
+
+    demoLogin();
   };
 
   const handleSubmit = (e) => {

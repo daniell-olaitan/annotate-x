@@ -9,6 +9,7 @@ import { useState, useEffect } from 'https://esm.sh/preact/hooks';
 const html = htm.bind(h);
 
 export function ImageList({
+  projectId,
   images,
   setImages,
   image,
@@ -30,7 +31,8 @@ export function ImageList({
 
   const handleSelectImage = (img, e) => {
     saveAnnotation({
-      id: image.id,
+      pId: projectId,
+      imgId: image.id,
       body: JSON.stringify(annotations[image.id]),
       setError: setError,
       setSaving: setSaving

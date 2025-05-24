@@ -3,14 +3,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import asyncio
-import httpx
 import json
 import requests
 import zipfile
 
 from io import BytesIO
-from utils.image_utils import ImageUtil, generate_image_name
+from utils import ImageUtil, generate_unique_name
 from werkzeug.exceptions import BadRequest, NotFound, InternalServerError
 from flask_app import create_app
 from flask_app.services import require_login, fetch_project
@@ -41,14 +39,8 @@ def load_logged_in_user():
 
 
 @app.route('/', methods=['GET'])
+@require_login
 def index():
-    if session.get('demo'):
-        return render_template(
-            'pages/project.html',
-            username='demo_user',
-            project_id=None
-        )
-
     if g.user is None:
         return redirect(url_for('auth.signin'))
 
@@ -85,10 +77,15 @@ def create_project() -> ResponseReturnValue:
         project = Project(name=project_name)
         project_id = project_repo.add(project, g.user.id)
 
-        # Handle Categories (classes)
-        categories = json.loads(request.form['classes'])
-        for c in categories:
-            category = Category(name=list(c.keys())[0], color=list(c.values())[0])
+        ## Handle Categories (classes)
+        # Make category names unique
+        categories = {
+            k.lower(): v
+            for k, v in json.loads(request.form['classes']).items()
+        }
+
+        for name, color in categories.items():
+            category = Category(name=name, color=color)
             _ = category_repo.add(category, project_id)
 
         # Upload Images
@@ -96,12 +93,17 @@ def create_project() -> ResponseReturnValue:
         files = []
 
         for img in request.files.values():
-            image_name = generate_image_name(image_names)
+            image_name = generate_unique_name(image_names, 'image')
             img.filename = image_name
             image_names.append(image_name)
-            files.append(img)
+            files.append((
+                img.filename,
+                img.stream,
+                img.mimetype
+            ))
 
         try:
+            img_util.delete_all(project_name)
             uploaded_imgs = img_util.upload_images(files, project_name)
         except Exception:
             raise InternalServerError('Network Error')
@@ -138,7 +140,7 @@ def read_project(id: str) -> ResponseReturnValue:
 @app.route('/projects', methods=['GET'])
 @require_login
 def read_projects() -> ResponseReturnValue:
-    projects = [project.to_dict() for project in project_repo.list()]
+    projects = [project.to_dict() for project in project_repo.list(g.user.id)]
 
     return jsonify({
         'status': 'success',
@@ -164,9 +166,10 @@ def delete_project(id: str) -> ResponseReturnValue:
     return jsonify({}), 200
 
 
-@app.route('/images/<string:id>/annotations', methods=['POST'])
+@app.route('/projects/<string:p_id>/images/<string:id>/annotations', methods=['POST'])
 @require_login
-def create_annotation(id: str) -> ResponseReturnValue:
+def create_annotation(p_id: str, id: str) -> ResponseReturnValue:
+    _ = fetch_project(p_id)
     annotations = request.get_json()
     if annotations is None:
         raise BadRequest('Invalid input')
@@ -177,16 +180,19 @@ def create_annotation(id: str) -> ResponseReturnValue:
 
     image_repo.remove_image_annotations(image.id)
 
-
     ## Handle Annotations
     try:
         for a in annotations:
             annotation = Annotation(a['x'], a['y'], a['width'], a['height'])
-            category = category_repo.get(a['category']['name'])
-            if not category:
-                raise BadRequest('Invalid Input')
+            category_name = a['category']['name'].lower()
+            category = category_repo.get(category_name)
+            if category:
+                category_id = category.id
+            else:
+                category = Category(category_name, a['category']['color'])
+                category_id = category_repo.add(category, p_id)
 
-            _ = annotation_repo.add(annotation, image.id, category.id)
+            _ = annotation_repo.add(annotation, image.id, category_id)
         get_db_session().commit()
     except KeyError:
         raise BadRequest('Invalid input')
@@ -205,10 +211,14 @@ def add_project_images(id: str) -> ResponseReturnValue:
     image_names = project_repo.get_project_image_names(project.id)
 
     for img in request.files.values():
-        image_name = generate_image_name(image_names)
+        image_name = generate_unique_name(image_names, 'image')
         img.filename = image_name
         image_names.append(image_name)
-        files.append(img)
+        files.append((
+            img.filename,
+            img.stream,
+            img.mimetype
+        ))
 
     try:
         uploaded_imgs = img_util.upload_images(files, project.name)
@@ -252,17 +262,6 @@ def delete_image(id: str) -> ResponseReturnValue:
 @app.route('/export/<string:id>', methods=['GET'])
 @require_login
 def export_project(id: str) -> ResponseReturnValue:
-    async def fetch(client: httpx.AsyncClient, url: str) -> httpx.Response:
-        response = await client.get(url)
-        response.raise_for_status()
-
-        return response
-
-    async def fetch_all(urls: list[str]) -> list[httpx.Response]:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
-            tasks = [fetch(client, url) for url in urls]
-            return await asyncio.gather(*tasks)
-
     project = project_repo.export_project_data(id)
     if not project:
         raise NotFound('Project does not exist')
@@ -270,13 +269,13 @@ def export_project(id: str) -> ResponseReturnValue:
     project_name = project.pop('name')
     image_urls = project.pop('image_urls')
 
+    try:
+        responses = img_util.fetch_images(image_urls)
+    except requests.RequestException:
+        raise InternalServerError('Network Error')
+
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', compression=zipfile.ZIP_DEFLATED) as zip_file:
-        try:
-            responses = asyncio.run(fetch_all(image_urls))
-        except requests.RequestException:
-            raise InternalServerError('Network Error')
-
         for img, response in zip(project['images'], responses):
             zip_file.writestr(f"images/{img['filename']}", response.content)
 

@@ -1,6 +1,6 @@
 from typing import Any
-from domain.model import User, Project, Image, Annotation, Category
-from storage.orm import UserORM, ProjectORM, ImageORM, AnnotationORM, CategoryORM
+from domain.model import User, Project, Image, Annotation, Category, Demo
+from storage.orm import UserORM, ProjectORM, ImageORM, AnnotationORM, CategoryORM, DemoORM
 from sqlalchemy.orm import Session
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -20,6 +20,14 @@ class UserRepository(ABC):
 
     @abstractmethod
     def get_by_id(self, id: str) -> User | None:
+        raise NOT_IMPLEMENTED_ERROR
+
+    @abstractmethod
+    def get_usernames(self) -> list[str]:
+        raise NOT_IMPLEMENTED_ERROR
+
+    @abstractmethod
+    def remove(self, id: str) -> None:
         raise NOT_IMPLEMENTED_ERROR
 
 
@@ -45,7 +53,7 @@ class ProjectRepository(ABC):
         raise NOT_IMPLEMENTED_ERROR
 
     @abstractmethod
-    def list(self) -> list[Project]:
+    def list(self, user_id: str) -> list[Project]:
         raise NOT_IMPLEMENTED_ERROR
 
     @abstractmethod
@@ -91,6 +99,12 @@ class ImageRepository(ABC):
         raise NOT_IMPLEMENTED_ERROR
 
 
+class DemoRepository(ABC):
+    @abstractmethod
+    def get_image_urls(self) -> list[str]:
+        raise NOT_IMPLEMENTED_ERROR
+
+
 ## Implementations of the Model Repositories
 class BaseSQLAlchemyRepository:
     def __init__(self, session: Session) -> None:
@@ -121,6 +135,16 @@ class SQLAlchemyUserRepsitory(BaseSQLAlchemyRepository, UserRepository):
             return User(**user_orm.to_dict())
 
         return None
+
+    def get_usernames(self) -> list[str]:
+        return [
+            user.username
+            for user in self._session.query(UserORM).all()
+        ]
+
+    def remove(self, id: str) -> None:
+        user_orm = self._session.query(UserORM).filter_by(id=id).first()
+        self._session.delete(user_orm)
 
 
 class SQLAlchemyProjectRepository(BaseSQLAlchemyRepository, ProjectRepository):
@@ -182,7 +206,17 @@ class SQLAlchemyProjectRepository(BaseSQLAlchemyRepository, ProjectRepository):
 
         return project
 
-    def list(self) -> list[Project]:
+    def list(self, user_id: str = None) -> list[Project]:
+        if user_id:
+            user_orm = self._session.query(UserORM).filter_by(id=user_id).first()
+            if not user_orm:
+                return []
+
+            return [
+                Project(**project_orm.to_dict())
+                for project_orm in self._session.query(ProjectORM).filter_by(user_id=user_id).all()
+            ]
+
         return [
             Project(**project_orm.to_dict())
             for project_orm in self._session.query(ProjectORM).all()
@@ -285,3 +319,11 @@ class SQLAlchemyCategoryRepository(CategoryRepository, BaseSQLAlchemyRepository)
             return Category(**category_orm.to_dict())
 
         return None
+
+
+class SQLAlchemyDemoRepository(DemoRepository, BaseSQLAlchemyRepository):
+    def get_image_urls(self) -> list[str]:
+        return [
+            demo.url
+            for demo in self._session.query(DemoORM).all()
+        ]

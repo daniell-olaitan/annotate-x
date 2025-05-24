@@ -44,6 +44,12 @@ class Project(BaseModel):
         self.name = name
 
 
+class Demo(BaseModel):
+    def __init__(self, url: str, id: str | None = None) -> None:
+        super().__init__(id=id)
+        self.url = url
+
+
 class Annotation(BaseModel):
     def __init__(
         self,

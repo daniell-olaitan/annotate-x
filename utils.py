@@ -25,40 +25,40 @@ cloudinary.config(
 )
 
 
-def generate_image_name(str_list: list[str], str_len: int = 5) -> str:
-    random_string = 'image-' + ''.join(random.choices(string.ascii_lowercase, k=str_len))
-    while random_string in str_list:
-        random_string = 'image-' + ''.join(random.choices(string.ascii_lowercase, k=str_len))
+def generate_unique_name(str_list: list[str], affix: str) -> str:
+    str_len = 5
+    random_name = affix + '-' + ''.join(random.choices(string.ascii_lowercase, k=str_len))
+    while random_name in str_list:
+        random_name = affix + '-' + ''.join(random.choices(string.ascii_lowercase, k=str_len))
 
-    return random_string
+    return random_name
 
 
 class ImageUtil:
     def __init__(self, retries: int = 1) -> None:
         self.retries = retries
 
-    async def async_upload_images(self, files: list[FileStorage], folder: str) -> list[dict]:
-        async def upload(client: httpx.AsyncClient, file: FileStorage):
+    async def async_upload_images(self, files: list[tuple], folder: str) -> list[dict]:
+        async def upload(client: httpx.AsyncClient, file: tuple):
             cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
             api_key = os.getenv("CLOUDINARY_API_KEY")
             api_secret = os.getenv("CLOUDINARY_API_SECRET")
             timestamp = str(int(time.time()))
 
             # Build signature string
-            params_to_sign = f"folder={folder}&public_id={file.filename}&timestamp={timestamp}{api_secret}"
+            params_to_sign = f"folder={folder}&public_id={file[0]}&timestamp={timestamp}{api_secret}"
             signature = hashlib.sha1(params_to_sign.encode("utf-8")).hexdigest()
 
             upload_url = f"https://api.cloudinary.com/v1_1/{cloud_name}/image/upload"
-            files = {"file": (file.filename, file.stream, file.mimetype)}
             data = {
                 "api_key": api_key,
                 "timestamp": timestamp,
-                "public_id": file.filename,
+                "public_id": file[0],
                 "folder": folder,
                 "signature": signature,
             }
 
-            response = await client.post(upload_url, data=data, files=files)
+            response = await client.post(upload_url, data=data, files={"file": file})
             response.raise_for_status()
 
             return response.json()
@@ -77,7 +77,7 @@ class ImageUtil:
                 return [
                     {
                         'url': response['secure_url'],
-                        'filename': file.filename,
+                        'filename': file[0],
                         'width': response['width'],
                         'height': response['height']
                     }
@@ -92,6 +92,35 @@ class ImageUtil:
 
     def upload_images(self, files: list[FileStorage], folder: str) -> list[dict]:
         return asyncio.run(self.async_upload_images(files, folder))
+
+    async def async_fetch_images(self, urls: list[str]) -> list[httpx.Response]:
+        async def fetch(client: httpx.AsyncClient, url: str) -> httpx.Response:
+            response = await client.get(url)
+            response.raise_for_status()
+
+            return response
+
+        attempt = 0
+        while attempt < self.retries:
+            try:
+                logger.info(f"Fetching images")
+
+                async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+                    tasks = [fetch(client, url) for url in urls]
+                    responses = await asyncio.gather(*tasks)
+
+                logger.info("Images uploaded successfully")
+
+                return responses
+            except Exception as e:
+                attempt += 1
+                logger.warning(f"Fetch attempt {attempt} failed: {e}")
+                if not (attempt < self.retries):
+                    logger.error(f"Failed to download images after {self.retries} attempts.")
+                    raise
+
+    def fetch_images(self, urls: str) -> list[httpx.Response]:
+        return asyncio.run(self.async_fetch_images(urls))
 
     def delete_image(self, image: Image) -> None:
         attempt = 0
@@ -121,7 +150,8 @@ class ImageUtil:
             try:
                 logger.info(f"Deleting images")
                 response = cloudinary.api.delete_resources_by_prefix(folder + "/")
-                if response.get("deleted"):
+                print(response)
+                if "deleted" in response:
                     logger.info("Images deleted successfully")
                     break
                 else:

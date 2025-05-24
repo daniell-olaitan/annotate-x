@@ -5,7 +5,7 @@ import { ImageList } from './ImageList.js';
 import { Annotator } from './Annotator.js';
 import { AnnotationList } from './AnnotationList.js';
 import { Form } from './Form.js';
-import { saveAnnotation } from '../utils.js';
+import { saveAnnotation, ColorSelector } from '../utils.js';
 
 import htm from 'https://esm.sh/htm';
 import { h } from 'https://esm.sh/preact';
@@ -104,7 +104,8 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
 
   const handleNext = (e) => {
     saveAnnotation({
-      id: image.id,
+      pId: projectId,
+      imgId: image.id,
       body: JSON.stringify(annotations[image.id]),
       setError: setError,
       setSaving: setSaving
@@ -122,7 +123,8 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
 
   const handlePrev = (e) => {
     saveAnnotation({
-      id: image.id,
+      pId: projectId,
+      imgId: image.id,
       body: JSON.stringify(annotations[image.id]),
       setError: setError,
       setSaving: setSaving
@@ -140,7 +142,8 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
 
   const handleSave = (e) => {
     saveAnnotation({
-      id: image.id,
+      pId: projectId,
+      imgId: image.id,
       body: JSON.stringify(annotations[image.id]),
       setError: setError,
       setSaving: setSaving
@@ -149,7 +152,8 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
 
   const handleFinish = (e) => {
     saveAnnotation({
-      id: image.id,
+      pId: projectId,
+      imgId: image.id,
       body: JSON.stringify(annotations[image.id]),
       setError: setError,
       setSaving: setSaving
@@ -334,32 +338,16 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
   };
 
   const createProject = () => {
-    const colors = [
-      "red",
-      "blue",
-      "green",
-      "orange",
-      "purple",
-      "teal",
-      "yellow",
-      "pink",
-      "brown",
-      "cyan"
-    ];
-
-    const classes = [];
+    const classes = {};
     const chosen = [];
     const project = new FormData();
 
     formClasses.split(';').forEach(cls => {
       if (cls.trim()) {
-        let randomColor = colors[Math.floor(Math.random() * colors.length)];
+        const colorSelector = new ColorSelector();
+        const randomColor = colorSelector.selectColor(chosen);
 
-        while (chosen.includes(randomColor)) {
-          randomColor = colors[Math.floor(Math.random() * colors.length)];
-        }
-
-        classes.push({[cls.trim()]: randomColor});
+        classes[cls.trim().toLowerCase()] = randomColor;
         chosen.push(randomColor);
       }
     });
@@ -554,6 +542,7 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
         </div>
 
         <${ImageList}
+          projectId=${projectId}
           images=${images}
           setImages=${setImages}
           image=${image}
@@ -616,7 +605,8 @@ export function AnnotationBoard({ projectId, setError, setLoading, setSaving }) 
                 <div class="flex-grow">
                   <${Annotator}
                     image=${image}
-                    classes=${project.categories}
+                    project=${project}
+                    setProject=${setProject}
                     annotations=${annotations}
                     setAnnotations=${setAnnotations}
                   />
