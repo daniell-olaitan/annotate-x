@@ -15,7 +15,7 @@ from flask_app.services import require_login, fetch_project
 from json import JSONDecodeError
 from flask.typing import ResponseReturnValue
 from flask import render_template, request, jsonify, session, g, redirect, url_for, send_file
-from domain.model import Image, Project, Annotation, Category
+from src.model import Image, Project, Annotation, Category
 from storage import (
     user_repo,
     project_repo,

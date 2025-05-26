@@ -1,5 +1,5 @@
 from typing import Any
-from domain.model import User, Project, Image, Annotation, Category, Demo
+from src.model import User, Project, Image, Annotation, Category, Demo
 from storage.orm import UserORM, ProjectORM, ImageORM, AnnotationORM, CategoryORM, DemoORM
 from sqlalchemy.orm import Session
 from abc import ABC, abstractmethod

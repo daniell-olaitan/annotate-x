@@ -11,7 +11,7 @@ import time
 import httpx
 
 from werkzeug.datastructures import FileStorage
-from domain.model import Image
+from src.model import Image
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

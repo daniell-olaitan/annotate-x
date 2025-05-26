@@ -3,7 +3,7 @@ from flask import request, render_template, redirect, url_for, g, session, jsoni
 from storage import user_repo, get_db_session, project_repo, image_repo, category_repo, demo_repo
 from flask_app import bcrypt
 from flask_app.services import require_login
-from domain.model import User, Project, Image, Category
+from src.model import User, Project, Image, Category
 from werkzeug.exceptions import BadRequest, NotFound, InternalServerError
 from utils import generate_unique_name, ImageUtil
 
