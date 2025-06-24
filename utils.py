@@ -10,7 +10,6 @@ import hashlib
 import time
 import httpx
 
-from werkzeug.datastructures import FileStorage
 from src.model import Image
 
 # Configure logging
@@ -90,7 +89,7 @@ class ImageUtil:
                     logger.error(f"Failed to upload image after {self.retries} attempts.")
                     raise
 
-    def upload_images(self, files: list[FileStorage], folder: str) -> list[dict]:
+    def upload_images(self, files: list[tuple], folder: str) -> list[dict]:
         return asyncio.run(self.async_upload_images(files, folder))
 
     async def async_fetch_images(self, urls: list[str]) -> list[httpx.Response]:

@@ -102,8 +102,8 @@ def create_project() -> ResponseReturnValue:
             ))
 
         try:
-            img_util.delete_all(project_name)
-            uploaded_imgs = img_util.upload_images(files, project_name)
+            img_util.delete_allf"FLASK/{project_name}")
+            uploaded_imgs = img_util.upload_images(files, f"FLASK/{project_name}")
         except Exception:
             raise InternalServerError('Network Error')
 
@@ -151,11 +151,8 @@ def read_projects() -> ResponseReturnValue:
 @require_login
 def delete_project(id: str) -> ResponseReturnValue:
     project = fetch_project(id)
-    if project is None:
-        raise BadRequest('Project does not exist')
-
     try:
-        img_util.delete_all(project.name)
+        img_util.delete_all(f"FLASK/{project.name}")
     except Exception:
         raise InternalServerError('Network Error')
 
@@ -220,7 +217,7 @@ def add_project_images(id: str) -> ResponseReturnValue:
         ))
 
     try:
-        uploaded_imgs = img_util.upload_images(files, project.name)
+        uploaded_imgs = img_util.upload_images(files, f"FLASK/{project.name}")
     except Exception:
         raise InternalServerError('Network Error')
 

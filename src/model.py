@@ -81,12 +81,6 @@ class Image(BaseModel):
         self.height = height
         self.filename = filename
 
-    def convert_to_coco_bbox(self) -> dict:
-        image_dict = self.to_dict()
-        del image_dict['url']
-
-        return image_dict
-
 
 class Category(BaseModel):
     def __init__(self, name: str, color: str, id: str | None = None) -> None:

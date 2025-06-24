@@ -1,10 +1,5 @@
-import uuid
-
-from os import getenv
-from sqlalchemy import event
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import class_mapper, ColumnProperty, RelationshipProperty
 
 db = SQLAlchemy()
 

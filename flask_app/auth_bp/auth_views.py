@@ -28,10 +28,9 @@ def demo_signin():
 
         # Handle Categories (classes)
         categories = [
-            ('class1', 'purple'),
-            ('class2', 'brown'),
-            ('class3', 'green'),
-            ('class4', 'blue')
+            ('car', 'purple'),
+            ('bus', 'brown'),
+            ('van', 'blue')
         ]
 
         for name, color in categories:
@@ -55,7 +54,7 @@ def demo_signin():
             ))
 
         try:
-            uploaded_imgs = img_util.upload_images(files, project_name)
+            uploaded_imgs = img_util.upload_images(files, f"FLASK/{project_name}")
         except Exception:
             raise InternalServerError('Network Error')
 
@@ -122,7 +121,7 @@ def signout():
     if demo:
         for project in project_repo.list(g.user.id):
             try:
-                img_util.delete_all(project.name)
+                img_util.delete_all(f"FLASK/{project.name}")
             except Exception:
                 raise InternalServerError('Network Error')
 
