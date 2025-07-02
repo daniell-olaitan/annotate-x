@@ -57,7 +57,7 @@ cd annotate-x
 docker-compose up --build
 ````
 
-Then visit `http://localhost:5000` in your browser.
+Then visit `http://localhost:8000` in your browser.
 
 ---
 
